@@ -7,6 +7,38 @@ mobile, and with an Xbox controller** — no install, no build step.
 
 ![Cosmos Explorer](docs/screenshot.png)
 
+## 📡 The Bonkers Blurb™ (as seen on Hallucinated Takes)
+
+> STOP scrolling. The Sun is ON FIRE — not metaphorically, LITERALLY, we
+> hand-simulated every roiling plasma granule and it is FURIOUS — and it wants you
+> to fly directly into it at seventy arbitrary units per second. **COSMOS EXPLORER**
+> is a 3D space shooter that boots in your browser in the time it takes to blink,
+> loads NOTHING from a server, and immediately hands you a chrome rocket with the
+> aerodynamic profile of pure attitude.
+>
+> You will fly. In ALL directions. Yes, *up*. Yes, *the other up*. Barrel-roll past
+> a ringed gas giant like you pay rent there. Then the aliens arrive: neon **scouts**
+> that swarm like caffeinated wasps, **fighters** that circle-strafe with the smug
+> confidence of a parallel-parking expert, and **cruiser** saucers — flying dinner
+> plates of pure menace that soak up lasers and drop loot when they finally, gloriously,
+> *pop* into a bloom-lit fireball with a shockwave ring and a camera shake you'll feel
+> in your DENTAL WORK.
+>
+> Chain kills. Watch the combo multiplier climb like a stock you don't understand.
+> Overheat your pulse laser and feel *shame*. Collect a shield cell and feel like a GOD.
+> There is a radar. There is a lock-on reticle. There is a film-grain-and-chromatic-
+> aberration color grade so cinematic you'll check your reflection for a director's chair.
+>
+> Works on your laptop. Works on your iPhone with a virtual joystick. Works with an
+> Xbox controller because we RESPECT you. No install. No launcher. No "create an account
+> to continue." Just a rocket, a solar system, and a truly unreasonable number of
+> explosions.
+>
+> **Cosmos Explorer. The Sun started it. You finish it.** 🚀☀️💥
+>
+> <sub>(Built with three.js and vanilla ES modules. No engine. No build step. Absolutely
+> no chill.)</sub>
+
 ## Features
 
 - **Full 3D solar system** — a bloom-lit sun with a layered corona, six orbiting
