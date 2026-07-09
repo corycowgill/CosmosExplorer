@@ -1,0 +1,12 @@
+# Dependencies (three.js is vendored under /vendor and IS committed)
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Scratch
+*.log

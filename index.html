@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#05010f" />
+  <title>Cosmos Explorer</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <!-- three.js is vendored locally (see /vendor) so the game is self-contained and
+       runs with no build step and no network dependency. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/build/three.module.js",
+      "three/addons/": "./vendor/three/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- WebGL canvas is created and attached by the renderer -->
+  <div id="game-root"></div>
+
+  <!-- ============ HUD OVERLAY ============ -->
+  <div id="hud" class="hidden">
+    <!-- Top left: score & wave -->
+    <div class="hud-corner hud-topleft">
+      <div class="hud-panel">
+        <div class="hud-label">SCORE</div>
+        <div id="hud-score" class="hud-value glow-cyan">0</div>
+        <div class="hud-sub">HI <span id="hud-hiscore">0</span></div>
+      </div>
+      <div class="hud-panel">
+        <div class="hud-label">WAVE</div>
+        <div id="hud-wave" class="hud-value glow-magenta">1</div>
+        <div class="hud-sub">x<span id="hud-combo">1</span> COMBO</div>
+      </div>
+    </div>
+
+    <!-- Top right: radar -->
+    <div class="hud-corner hud-topright">
+      <div class="hud-panel radar-panel">
+        <div class="hud-label">RADAR</div>
+        <canvas id="radar" width="150" height="150"></canvas>
+      </div>
+    </div>
+
+    <!-- Bottom left: hull & shields -->
+    <div class="hud-corner hud-bottomleft">
+      <div class="hud-panel">
+        <div class="hud-label">HULL INTEGRITY</div>
+        <div class="bar"><div id="hud-health" class="bar-fill health"></div></div>
+        <div class="hud-label" style="margin-top:8px">SHIELDS</div>
+        <div class="bar"><div id="hud-shield" class="bar-fill shield"></div></div>
+      </div>
+    </div>
+
+    <!-- Bottom right: throttle & weapon -->
+    <div class="hud-corner hud-bottomright">
+      <div class="hud-panel align-right">
+        <div class="hud-label">VELOCITY</div>
+        <div id="hud-speed" class="hud-value glow-cyan small">0</div>
+        <div class="hud-sub" id="hud-weapon">PULSE LASER</div>
+        <div class="hud-sub">HEAT <span id="hud-heat">0%</span></div>
+      </div>
+    </div>
+
+    <!-- Center crosshair -->
+    <div id="crosshair">
+      <div class="ch-ring"></div>
+      <div class="ch-dot"></div>
+      <div class="ch-tick t"></div>
+      <div class="ch-tick b"></div>
+      <div class="ch-tick l"></div>
+      <div class="ch-tick r"></div>
+    </div>
+    <div id="lock-marker" class="hidden"></div>
+
+    <!-- Center-top toast messages (wave clear, etc.) -->
+    <div id="toast"></div>
+
+    <!-- Damage vignette flash -->
+    <div id="damage-flash"></div>
+  </div>
+
+  <!-- ============ TOUCH CONTROLS (mobile) ============ -->
+  <div id="touch-controls" class="hidden">
+    <div id="joystick-zone">
+      <div id="joystick-base">
+        <div id="joystick-thumb"></div>
+      </div>
+    </div>
+    <div id="touch-buttons">
+      <button id="btn-boost" class="touch-btn">BOOST</button>
+      <button id="btn-fire" class="touch-btn fire">FIRE</button>
+    </div>
+  </div>
+
+  <!-- ============ START / MENU SCREEN ============ -->
+  <div id="menu" class="overlay-screen">
+    <div class="menu-inner">
+      <h1 class="title">COSMOS<span>EXPLORER</span></h1>
+      <p class="tagline">Scramble your rocket. Sweep the solar system. Blast the invaders.</p>
+      <button id="btn-start" class="cta">LAUNCH</button>
+      <div class="controls-hint">
+        <div class="ctrl-col">
+          <h3>DESKTOP</h3>
+          <p><b>Mouse</b> — Steer &amp; aim</p>
+          <p><b>W / S</b> — Throttle / brake</p>
+          <p><b>A / D · Q / E</b> — Yaw / roll</p>
+          <p><b>Click / Space</b> — Fire</p>
+          <p><b>Shift</b> — Boost</p>
+        </div>
+        <div class="ctrl-col">
+          <h3>GAMEPAD</h3>
+          <p><b>Left stick</b> — Steer</p>
+          <p><b>RT / A</b> — Fire</p>
+          <p><b>LT / B</b> — Boost</p>
+          <p><b>Bumpers</b> — Roll</p>
+        </div>
+        <div class="ctrl-col">
+          <h3>MOBILE</h3>
+          <p><b>Left joystick</b> — Steer</p>
+          <p><b>FIRE</b> — Blast</p>
+          <p><b>BOOST</b> — Afterburner</p>
+          <p>Tilt into the turns!</p>
+        </div>
+      </div>
+      <p class="foot">A three.js arcade flight-shooter · Best with sound on 🔊</p>
+    </div>
+  </div>
+
+  <!-- ============ GAME OVER SCREEN ============ -->
+  <div id="gameover" class="overlay-screen hidden">
+    <div class="menu-inner">
+      <h1 class="title small">SHIP LOST</h1>
+      <div class="score-readout">
+        <div><span class="hud-label">FINAL SCORE</span><div id="go-score" class="hud-value glow-cyan">0</div></div>
+        <div><span class="hud-label">BEST</span><div id="go-hiscore" class="hud-value glow-magenta">0</div></div>
+        <div><span class="hud-label">WAVE REACHED</span><div id="go-wave" class="hud-value">1</div></div>
+        <div><span class="hud-label">KILLS</span><div id="go-kills" class="hud-value">0</div></div>
+      </div>
+      <button id="btn-restart" class="cta">RE-LAUNCH</button>
+    </div>
+  </div>
+
+  <!-- Loading indicator -->
+  <div id="loader" class="overlay-screen">
+    <div class="loader-inner">
+      <div class="loader-ring"></div>
+      <div class="loader-text">SPOOLING WARP CORE…</div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
