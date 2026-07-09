@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 import { SolarSystem } from './SolarSystem.js';
 import { Player } from './Player.js';
@@ -72,9 +73,53 @@ export class Game {
     // explosions glow. Lighter on low-end devices.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    const strength = this.quality === 'high' ? 0.62 : 0.5;
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, 0.6, 0.9);
+    const strength = this.quality === 'high' ? 0.72 : 0.55;
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, 0.65, 0.85);
     this.composer.addPass(this.bloom);
+
+    // Cinematic grade: chromatic aberration toward the edges, a soft vignette,
+    // gentle film grain and a saturation lift for that "spaceship viewport" look.
+    this.gradePass = new ShaderPass({
+      uniforms: {
+        tDiffuse: { value: null },
+        uTime: { value: 0 },
+        uAberration: { value: this.quality === 'high' ? 1.6 : 0.9 },
+        uVignette: { value: 0.62 },
+        uGrain: { value: this.quality === 'high' ? 0.05 : 0.03 },
+        uSaturation: { value: 1.14 },
+      },
+      vertexShader: /* glsl */`
+        varying vec2 vUv;
+        void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+      `,
+      fragmentShader: /* glsl */`
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        uniform float uTime, uAberration, uVignette, uGrain, uSaturation;
+        void main(){
+          vec2 uv = vUv;
+          vec2 center = uv - 0.5;
+          float dist = length(center);
+          // Chromatic aberration grows toward the frame edges.
+          vec2 dir = center * (uAberration * 0.006) * dist * 2.0;
+          float r = texture2D(tDiffuse, uv - dir).r;
+          float g = texture2D(tDiffuse, uv).g;
+          float b = texture2D(tDiffuse, uv + dir).b;
+          vec3 col = vec3(r, g, b);
+          // Saturation.
+          float lum = dot(col, vec3(0.299, 0.587, 0.114));
+          col = mix(vec3(lum), col, uSaturation);
+          // Vignette.
+          float vig = smoothstep(0.95, 0.32, dist);
+          col *= mix(1.0, vig, uVignette);
+          // Animated film grain.
+          float grain = fract(sin(dot(uv + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+          col += (grain - 0.5) * uGrain;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+    this.composer.addPass(this.gradePass);
   }
 
   _initSubsystems() {
@@ -168,6 +213,7 @@ export class Game {
   // ---------------- main loop ----------------
   _loop() {
     const dt = Math.min(0.05, this._clock.getDelta());
+    this._elapsed = (this._elapsed || 0) + dt;
 
     if (this.state === STATE.PLAYING) {
       this._updatePlaying(dt);
@@ -179,6 +225,7 @@ export class Game {
       this.projectiles.update(dt);
     }
 
+    this.gradePass.uniforms.uTime.value = this._elapsed;
     this.hud.update(dt);
     this.composer.render();
   }

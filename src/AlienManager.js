@@ -93,10 +93,22 @@ class Alien {
     this.mesh = BUILDERS[type](this.def);
     this.group.add(this.mesh);
 
-    // Aura glow sprite.
-    this.aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: this.def.glow, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.aura.scale.setScalar(this.def.radius * 3);
+    // Tight aura glow so the ship's silhouette still reads (was washing out).
+    this.aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: this.def.glow, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.aura.scale.setScalar(this.def.radius * 2.1);
     this.group.add(this.aura);
+
+    // Thruster glow behind the ship. Attached to the group (which faces travel via
+    // lookAt, +Z = forward) so it sits behind the alien and never spins with the hull.
+    this.trail = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: this.def.glow, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.trail.scale.setScalar(this.def.radius * 1.7);
+    this.trail.position.set(0, 0, -this.def.radius * 1.1);
+    this.group.add(this.trail);
+
+    // Give the hull a stronger self-lit glow so the geometry pops at distance.
+    this.mesh.traverse((o) => {
+      if (o.material && o.material.emissive) o.material.emissiveIntensity = Math.max(o.material.emissiveIntensity || 0, 0.55);
+    });
 
     scene.add(this.group);
     this.group.visible = false;
@@ -175,15 +187,17 @@ class Alien {
     if (this.type === 'cruiser') this.mesh.rotation.y += dt * 1.2;
     else this.mesh.rotation.z += dt * 0.6;
 
-    // Hit flash decay.
+    // Hit flash decay (restores to the brighter self-lit base, not below it).
     if (this.hitFlash > 0) {
       this.hitFlash -= dt;
       const f = Math.max(0, this.hitFlash / 0.12);
-      this.mesh.traverse((o) => { if (o.material && o.material.emissive) o.material.emissiveIntensity = 0.3 + f * 2; });
+      this.mesh.traverse((o) => { if (o.material && o.material.emissive) o.material.emissiveIntensity = 0.55 + f * 2.5; });
     }
 
-    // Aura faces camera automatically (sprite).
-    this.aura.material.opacity = 0.35 + Math.sin(this.wobble * 2) * 0.1;
+    // Aura + thruster pulse.
+    this.aura.material.opacity = 0.28 + Math.sin(this.wobble * 2) * 0.08;
+    const throb = 0.85 + Math.sin(this.wobble * 4) * 0.15;
+    this.trail.scale.setScalar(this.def.radius * 1.7 * throb);
 
     // Fire logic handled by manager (needs projectile pool); expose readiness.
     this.fireTimer -= dt;

@@ -87,6 +87,45 @@ export class SolarSystem {
     this._buildNebula();
     this._buildSun();
     this._buildPlanets();
+    this._buildDust();
+  }
+
+  // Near-field motion dust: faint particles the ship streams through, wrapped in a
+  // box around the camera so there's always a sense of speed and depth.
+  _buildDust() {
+    const count = this.quality === 'low' ? 260 : 520;
+    this.dustRange = 900;
+    const pos = new Float32Array(count * 3);
+    for (let i = 0; i < count * 3; i++) pos[i] = randRange(-this.dustRange, this.dustRange);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 3.4, map: makeGlowSprite(), color: 0x9fc8ff,
+      transparent: true, opacity: 0.5, depthWrite: false,
+      blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    });
+    this.dust = new THREE.Points(geo, mat);
+    this.dust.frustumCulled = false;
+    this.dustCount = count;
+    this.scene.add(this.dust);
+  }
+
+  _updateDust(center) {
+    if (!this.dust || !center) return;
+    const arr = this.dust.geometry.attributes.position.array;
+    const R = this.dustRange;
+    let dirty = false;
+    for (let i = 0; i < this.dustCount; i++) {
+      const k = i * 3;
+      // Wrap each axis relative to the camera so the field follows the ship.
+      for (let a = 0; a < 3; a++) {
+        const c = a === 0 ? center.x : a === 1 ? center.y : center.z;
+        let d = arr[k + a] - c;
+        if (d > R) { arr[k + a] -= 2 * R; dirty = true; }
+        else if (d < -R) { arr[k + a] += 2 * R; dirty = true; }
+      }
+    }
+    if (dirty) this.dust.geometry.attributes.position.needsUpdate = true;
   }
 
   _buildStars() {
@@ -149,20 +188,38 @@ export class SolarSystem {
   }
 
   _buildSun() {
-    const geo = new THREE.SphereGeometry(200, 48, 48);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffdd66 });
+    const geo = new THREE.SphereGeometry(200, 64, 64);
+    // Granulated, mottled surface so the sun reads as roiling plasma, not a flat disc.
+    const mat = new THREE.MeshBasicMaterial({ map: makeSunTexture() });
     this.sun = new THREE.Mesh(geo, mat);
     this.root.add(this.sun);
 
-    // Layered additive glow sprites make the sun bloom nicely.
+    // Layered additive glow sprites make the sun bloom nicely; kept for animation.
+    this.sunGlows = [];
     const glowTex = makeGlowSprite();
-    for (const [scale, opacity, color] of [[900, 0.9, 0xffcc55], [1500, 0.5, 0xff8844], [2600, 0.25, 0xff5522]]) {
+    const layers = [[820, 0.95, 0xffe08a, 0.05], [1400, 0.55, 0xff9a44, -0.03], [2600, 0.28, 0xff5a22, 0.02]];
+    for (const [scale, opacity, color, spin] of layers) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({
         map: glowTex, color, transparent: true, opacity,
         depthWrite: false, blending: THREE.AdditiveBlending,
       }));
       s.scale.set(scale, scale, 1);
+      s.userData = { baseScale: scale, baseOpacity: opacity, spin };
       this.sun.add(s);
+      this.sunGlows.push(s);
+    }
+
+    // A ring of drifting corona flares for a living, flickering star.
+    this.sunFlares = [];
+    for (let i = 0; i < 7; i++) {
+      const f = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: glowTex, color: 0xffb355, transparent: true, opacity: 0.5,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }));
+      const a = (i / 7) * Math.PI * 2;
+      f.userData = { angle: a, speed: randRange(0.15, 0.4) * (i % 2 ? 1 : -1), r: randRange(230, 320), s: randRange(200, 420) };
+      this.sun.add(f);
+      this.sunFlares.push(f);
     }
 
     // Point light emanating from the sun.
@@ -206,7 +263,21 @@ export class SolarSystem {
 
       if (def.ring) this._addRing(mesh, def.radius);
 
-      this.planets.push({ pivot, mesh, def, angle: pivot.rotation.y, spin: randRange(0.05, 0.2) });
+      // Drifting cloud shell for worlds with an atmosphere (Terra gets the richest).
+      let clouds = null;
+      if (def.ocean || def.bands) {
+        clouds = new THREE.Mesh(
+          new THREE.SphereGeometry(def.radius * 1.03, 40, 40),
+          new THREE.MeshStandardMaterial({
+            map: makeCloudTexture(def.ocean),
+            transparent: true, opacity: def.ocean ? 0.85 : 0.4,
+            roughness: 1, metalness: 0, depthWrite: false,
+          })
+        );
+        mesh.add(clouds);
+      }
+
+      this.planets.push({ pivot, mesh, clouds, def, angle: pivot.rotation.y, spin: randRange(0.05, 0.2) });
       this.colliders.push({ position: mesh.getWorldPosition(new THREE.Vector3()), radius: def.radius * 1.15, mesh });
     }
   }
@@ -239,24 +310,99 @@ export class SolarSystem {
   }
 
   update(dt, cameraPos) {
-    // Orbit + spin planets.
+    this._t = (this._t || 0) + dt;
+    // Orbit + spin planets and their cloud shells.
     for (const p of this.planets) {
       p.pivot.rotation.y += p.def.speed * dt * 0.4;
       p.mesh.rotation.y += p.spin * dt;
-      // Keep collider world positions current.
-      p.mesh.getWorldPosition(this._tmp || (this._tmp = new THREE.Vector3()));
+      if (p.clouds) p.clouds.rotation.y += p.spin * dt * 1.4; // clouds drift faster
     }
     for (let i = 0; i < this.colliders.length; i++) {
       const col = this.colliders[i];
       if (col.mesh) col.mesh.getWorldPosition(col.position);
     }
+
+    // Sun: slow surface churn, shimmering corona layers, drifting flares, flicker.
     this.sun.rotation.y += dt * 0.03;
+    const flick = 0.94 + Math.sin(this._t * 7.3) * 0.03 + Math.sin(this._t * 2.1) * 0.03;
+    if (this.sunGlows) {
+      for (const g of this.sunGlows) {
+        g.material.rotation += g.userData.spin * dt;
+        const pulse = 1 + Math.sin(this._t * 1.3 + g.userData.baseScale) * 0.03;
+        g.scale.setScalar(g.userData.baseScale * pulse);
+        g.material.opacity = g.userData.baseOpacity * flick;
+      }
+    }
+    if (this.sunFlares) {
+      for (const f of this.sunFlares) {
+        const u = f.userData;
+        u.angle += u.speed * dt;
+        f.position.set(Math.cos(u.angle) * u.r, Math.sin(u.angle * 1.3) * u.r * 0.5, Math.sin(u.angle) * u.r);
+        const s = u.s * (0.85 + Math.sin(this._t * 3 + u.angle) * 0.25);
+        f.scale.setScalar(s);
+        f.material.opacity = 0.35 + Math.sin(this._t * 4 + u.angle) * 0.2;
+      }
+    }
+    if (this.sunLight) this.sunLight.intensity = 3.2 * flick;
+
     // Parallax: keep starfield/nebula centred on the camera so they feel infinitely far.
     if (cameraPos) {
       this.stars.position.copy(cameraPos);
       this.nebulae.position.copy(cameraPos);
+      this._updateDust(cameraPos);
     }
   }
+}
+
+// Roiling plasma texture for the sun surface.
+function makeSunTexture() {
+  const s = 512;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffcf55';
+  ctx.fillRect(0, 0, s, s);
+  // Granulation cells.
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * s, y = Math.random() * s, r = randRange(3, 16);
+    const hot = Math.random() < 0.5;
+    const col = hot ? [255, 240, 180] : [230, 120, 40];
+    ctx.globalAlpha = randRange(0.05, 0.3);
+    ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // A few darker sunspots.
+  for (let i = 0; i < 6; i++) {
+    ctx.globalAlpha = randRange(0.25, 0.45);
+    ctx.fillStyle = '#7a3a10';
+    ctx.beginPath(); ctx.ellipse(Math.random() * s, Math.random() * s, randRange(8, 22), randRange(6, 16), Math.random() * Math.PI, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// Soft cloud shell texture; oceanic worlds get denser white clouds.
+function makeCloudTexture(dense) {
+  const s = 256;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, s, s);
+  const n = dense ? 90 : 50;
+  for (let i = 0; i < n; i++) {
+    const x = Math.random() * s, y = Math.random() * s;
+    const r = randRange(6, 26);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255,255,255,${randRange(0.4, 0.9)})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 // --- shared sprite textures (cached) ---
