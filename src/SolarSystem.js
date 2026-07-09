@@ -85,47 +85,96 @@ export class SolarSystem {
 
     this._buildStars();
     this._buildNebula();
+    this._buildGalaxies();
     this._buildSun();
     this._buildPlanets();
     this._buildDust();
   }
 
-  // Near-field motion dust: faint particles the ship streams through, wrapped in a
-  // box around the camera so there's always a sense of speed and depth.
+  // Distant spiral galaxies as tilted 3D discs (real geometry, not camera-facing
+  // sprites) so they read as objects hanging in space at genuine angles.
+  _buildGalaxies() {
+    this.galaxies = new THREE.Group();
+    const colors = [0xbca8ff, 0x7fc8ff, 0xffb0d0];
+    const n = this.quality === 'low' ? 2 : 3;
+    for (let i = 0; i < n; i++) {
+      const tex = makeGalaxyTexture(colors[i % colors.length]);
+      const size = randRange(2600, 4200);
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: randRange(0.55, 0.85), depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false })
+      );
+      const r = randRange(6000, 8500);
+      const u = Math.random(), v = Math.random();
+      const theta = 2 * Math.PI * u, phi = Math.acos(2 * v - 1);
+      mesh.position.set(r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi)*0.6, r*Math.sin(phi)*Math.sin(theta));
+      mesh.rotation.set(randRange(0, Math.PI), randRange(0, Math.PI), randRange(0, Math.PI));
+      mesh.userData.spin = randRange(0.005, 0.02) * (i % 2 ? 1 : -1);
+      this.galaxies.add(mesh);
+    }
+    this.scene.add(this.galaxies);
+  }
+
+  // Parallax star volumes: several depth layers of stars wrapped in a box that
+  // follows the ship. Because near layers shift much faster than far ones as you
+  // move, flying and turning reveals true 3D depth — you feel *inside* the galaxy
+  // rather than looking at a flat backdrop.
   _buildDust() {
-    const count = this.quality === 'low' ? 260 : 520;
-    this.dustRange = 900;
-    const pos = new Float32Array(count * 3);
-    for (let i = 0; i < count * 3; i++) pos[i] = randRange(-this.dustRange, this.dustRange);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({
-      size: 3.4, map: makeGlowSprite(), color: 0x9fc8ff,
-      transparent: true, opacity: 0.5, depthWrite: false,
-      blending: THREE.AdditiveBlending, sizeAttenuation: true,
-    });
-    this.dust = new THREE.Points(geo, mat);
-    this.dust.frustumCulled = false;
-    this.dustCount = count;
-    this.scene.add(this.dust);
+    const lo = this.quality === 'low';
+    const defs = lo
+      ? [ { count: 220, range: 650, size: 3.2, color: 0xdCEBff, op: 0.7 },
+          { count: 300, range: 1700, size: 2.0, color: 0x9fb4e6, op: 0.5 } ]
+      : [ { count: 340, range: 620, size: 3.6, color: 0xe6f1ff, op: 0.8 },
+          { count: 520, range: 1500, size: 2.4, color: 0xb9c8f0, op: 0.55 },
+          { count: 640, range: 3200, size: 1.8, color: 0x8fa2d6, op: 0.4 } ];
+    const palette = [
+      new THREE.Color(0xffffff), new THREE.Color(0xbcd4ff), new THREE.Color(0xffe6c0),
+      new THREE.Color(0xffc0d8), new THREE.Color(0xcfe0ff),
+    ];
+    this.dustLayers = [];
+    for (const d of defs) {
+      const pos = new Float32Array(d.count * 3);
+      const col = new Float32Array(d.count * 3);
+      for (let i = 0; i < d.count; i++) {
+        pos[i*3] = randRange(-d.range, d.range);
+        pos[i*3+1] = randRange(-d.range, d.range);
+        pos[i*3+2] = randRange(-d.range, d.range);
+        const base = new THREE.Color(d.color);
+        const c = pick(palette).clone().lerp(base, 0.5).multiplyScalar(randRange(0.7, 1));
+        col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      const mat = new THREE.PointsMaterial({
+        size: d.size, map: makeGlowSprite(), vertexColors: true,
+        transparent: true, opacity: d.op, depthWrite: false,
+        blending: THREE.AdditiveBlending, sizeAttenuation: true,
+      });
+      const points = new THREE.Points(geo, mat);
+      points.frustumCulled = false;
+      this.scene.add(points);
+      this.dustLayers.push({ points, range: d.range, count: d.count });
+    }
   }
 
   _updateDust(center) {
-    if (!this.dust || !center) return;
-    const arr = this.dust.geometry.attributes.position.array;
-    const R = this.dustRange;
-    let dirty = false;
-    for (let i = 0; i < this.dustCount; i++) {
-      const k = i * 3;
-      // Wrap each axis relative to the camera so the field follows the ship.
-      for (let a = 0; a < 3; a++) {
-        const c = a === 0 ? center.x : a === 1 ? center.y : center.z;
-        let d = arr[k + a] - c;
-        if (d > R) { arr[k + a] -= 2 * R; dirty = true; }
-        else if (d < -R) { arr[k + a] += 2 * R; dirty = true; }
+    if (!this.dustLayers || !center) return;
+    for (const layer of this.dustLayers) {
+      const arr = layer.points.geometry.attributes.position.array;
+      const R = layer.range;
+      let dirty = false;
+      for (let i = 0; i < layer.count; i++) {
+        const k = i * 3;
+        for (let a = 0; a < 3; a++) {
+          const c = a === 0 ? center.x : a === 1 ? center.y : center.z;
+          const d = arr[k + a] - c;
+          if (d > R) { arr[k + a] -= 2 * R; dirty = true; }
+          else if (d < -R) { arr[k + a] += 2 * R; dirty = true; }
+        }
       }
+      if (dirty) layer.points.geometry.attributes.position.needsUpdate = true;
     }
-    if (dirty) this.dust.geometry.attributes.position.needsUpdate = true;
   }
 
   _buildStars() {
@@ -345,13 +394,64 @@ export class SolarSystem {
     }
     if (this.sunLight) this.sunLight.intensity = 3.2 * flick;
 
-    // Parallax: keep starfield/nebula centred on the camera so they feel infinitely far.
+    // Slowly turning galaxies for a touch of life.
+    if (this.galaxies) {
+      for (const g of this.galaxies.children) g.rotation.z += g.userData.spin * dt;
+    }
+
+    // Parallax: keep the far starfield/nebula centred on the camera so they feel
+    // infinitely distant, while the galaxies and dust layers stay fixed in world
+    // space and parallax past the ship — that contrast is what sells the 3D depth.
     if (cameraPos) {
       this.stars.position.copy(cameraPos);
       this.nebulae.position.copy(cameraPos);
       this._updateDust(cameraPos);
     }
   }
+}
+
+// A face-on spiral galaxy drawn to a canvas: bright core, two dusty arms of stars.
+function makeGalaxyTexture(tint) {
+  const s = 256;
+  const c = document.createElement('canvas');
+  c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, s, s);
+  const cx = s / 2, cy = s / 2;
+  const col = new THREE.Color(tint);
+  const rgb = (m) => `rgba(${(col.r*255*m)|0},${(col.g*255*m)|0},${(col.b*255*m)|0}`;
+
+  // Core glow.
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 0.28);
+  core.addColorStop(0, 'rgba(255,255,255,0.95)');
+  core.addColorStop(0.3, rgb(1.0) + ',0.55)');
+  core.addColorStop(1, rgb(1.0) + ',0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(0, 0, s, s);
+
+  // Spiral arms as clusters of star dots.
+  const arms = 2, turns = 2.4, maxR = s * 0.46;
+  ctx.globalCompositeOperation = 'lighter';
+  for (let a = 0; a < arms; a++) {
+    const off = (a / arms) * Math.PI * 2;
+    for (let i = 0; i < 900; i++) {
+      const t = i / 900;
+      const ang = off + t * turns * Math.PI * 2;
+      const r = t * maxR;
+      const jitter = (Math.random() - 0.5) * 18 * (0.3 + t);
+      const x = cx + Math.cos(ang) * r + Math.cos(ang + 1.5) * jitter;
+      const y = cy + Math.sin(ang) * r + Math.sin(ang + 1.5) * jitter;
+      const bright = (1 - t) * 0.9 + 0.1;
+      const white = Math.random() < 0.4;
+      ctx.fillStyle = (white ? 'rgba(255,255,255,' : rgb(1.2) + ',') + (Math.random() * 0.6 * bright).toFixed(2) + ')';
+      const rad = Math.random() < 0.9 ? 0.8 : 1.6;
+      ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 // Roiling plasma texture for the sun surface.

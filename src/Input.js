@@ -179,12 +179,14 @@ export class Input {
     // Only contribute when the pointer has moved and keyboard isn't overriding.
     if (this.mouse.active) {
       const mx = this.mouse.x, my = this.mouse.y;
-      const deadzone = 0.06;
+      const deadzone = 0.05;
       const shape = (v) => {
         const a = Math.abs(v);
         if (a < deadzone) return 0;
-        const t = (a - deadzone) / (1 - deadzone);
-        return Math.sign(v) * t * t; // ease-in for fine control near centre
+        // Reach full deflection at ~65% toward the edge, mostly linear with a
+        // touch of ease near centre — responsive without being twitchy.
+        let t = Math.min(1, (a - deadzone) / (0.65 - deadzone));
+        return Math.sign(v) * t * (0.55 + 0.45 * t);
       };
       // Keyboard steering takes precedence when a key is held, otherwise the
       // mouse aims freely in both axes.

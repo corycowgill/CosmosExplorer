@@ -22,14 +22,15 @@ export class Player {
     this._buildShip();
     this._buildTrail();
 
-    // Flight state
+    // Flight state — turn rates are high relative to cruise speed so the ship
+    // banks into tight, responsive arcs instead of a wide airliner turn.
     this.velocity = new THREE.Vector3();
-    this.speed = 60;
-    this.baseSpeed = 70;
-    this.boostSpeed = 150;
-    this.yawRate = 1.5;
-    this.pitchRate = 1.4;
-    this.rollRate = 2.2;
+    this.speed = 55;
+    this.baseSpeed = 58;
+    this.boostSpeed = 135;
+    this.yawRate = 2.7;
+    this.pitchRate = 2.5;
+    this.rollRate = 3.4;
 
     // Combat / survival
     this.maxHealth = 100;
@@ -186,11 +187,11 @@ export class Player {
     if (!this.alive) return;
 
     // ---- Rotation from input ----
+    // Yaw turns the heading directly (no auto-bank on the heading — that only
+    // muddied the turn). Banking is purely cosmetic, applied to the model below.
     const yaw = -input.yaw * this.yawRate * dt;
     const pitch = input.pitch * this.pitchRate * dt;
-    let roll = -input.roll * this.rollRate * dt;
-    // Auto-bank into yaw turns for a nicer feel (applied to heading a little).
-    roll += -input.yaw * 0.9 * dt;
+    const roll = -input.roll * this.rollRate * dt;
 
     this.group.rotateY(yaw);
     this.group.rotateX(pitch);
