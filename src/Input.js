@@ -160,15 +160,18 @@ export class Input {
     if (!this.enabled) return s;
 
     // ---- Keyboard ----
+    // WASD / arrow keys steer in every direction: A/D yaw, W/S pitch. Combined with
+    // roll (Q/E) the ship can point and fly anywhere — full spherical flight.
     const k = this.keys;
     if (k.has('KeyA') || k.has('ArrowLeft')) s.yaw -= 1;
     if (k.has('KeyD') || k.has('ArrowRight')) s.yaw += 1;
-    if (k.has('KeyW') || k.has('ArrowUp')) s.throttle += 1;
-    if (k.has('KeyS') || k.has('ArrowDown')) s.throttle -= 1;
-    if (k.has('KeyR')) s.pitch += 1;      // optional explicit pitch
-    if (k.has('KeyF')) s.pitch -= 1;
+    if (k.has('KeyW') || k.has('ArrowUp')) s.pitch += 1;   // nose up / climb
+    if (k.has('KeyS') || k.has('ArrowDown')) s.pitch -= 1; // nose down / dive
     if (k.has('KeyQ')) s.roll -= 1;
     if (k.has('KeyE')) s.roll += 1;
+    // Speed: accelerate / brake on a dedicated pair so it never blocks steering.
+    if (k.has('KeyR') || k.has('Equal')) s.throttle += 1;
+    if (k.has('KeyF') || k.has('Minus')) s.throttle -= 1;
     if (k.has('Space')) s.fire = true;
     if (k.has('ShiftLeft') || k.has('ShiftRight')) s.boost = true;
 
@@ -183,15 +186,17 @@ export class Input {
         const t = (a - deadzone) / (1 - deadzone);
         return Math.sign(v) * t * t; // ease-in for fine control near centre
       };
+      // Keyboard steering takes precedence when a key is held, otherwise the
+      // mouse aims freely in both axes.
       if (s.yaw === 0) s.yaw += shape(mx);
-      s.pitch += -shape(my);
+      if (s.pitch === 0) s.pitch += -shape(my);
       if (this.mouse.down) s.fire = true;
     }
 
     // ---- Touch ----
     if (this.touch.steerX || this.touch.steerY) {
       if (s.yaw === 0) s.yaw += this.touch.steerX;
-      s.pitch += -this.touch.steerY;
+      if (s.pitch === 0) s.pitch += -this.touch.steerY;
     }
     if (this.touch.fire) s.fire = true;
     if (this.touch.boost) s.boost = true;
