@@ -154,6 +154,46 @@
     </div>
   </div>
 
+  <!-- Watchdog (classic script, always runs): if the ES-module graph fails to
+       load — a 404, a wrong MIME type, or a browser without import-map support —
+       the module code never executes and the loader would otherwise hang forever.
+       This surfaces the real reason on screen instead. -->
+  <script>
+  (function () {
+    var shown = false;
+    function fail(msg, detail) {
+      if (shown) return; shown = true;
+      var loader = document.getElementById('loader');
+      if (!loader) return;
+      loader.classList.remove('hidden', 'fade-out');
+      loader.innerHTML =
+        '<div class="loader-inner" style="max-width:86vw">' +
+        '<div class="loader-text" style="color:#ff5b7a;font-size:15px">UNABLE TO SPOOL WARP CORE</div>' +
+        '<div class="loader-text" style="margin-top:12px">' + msg + '</div>' +
+        (detail ? '<div class="loader-text" style="margin-top:10px;opacity:0.65;word-break:break-all">' + detail + '</div>' : '') +
+        '</div>';
+    }
+    // 1) Browsers that don't support import maps (e.g. iOS Safari < 16.4).
+    if (!(window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('importmap'))) {
+      fail('This browser can’t load the game engine (no import-map support). Please update your browser — on iPhone, iOS 16.4 or newer is required.');
+      return;
+    }
+    // 2) A script/module file failed to load (404 or wrong content-type).
+    window.addEventListener('error', function (e) {
+      var t = e && e.target;
+      if (t && t.tagName === 'SCRIPT') {
+        fail('A game file failed to load. If this is a deployment, open DevTools → Network and check for a red (failed) request under /src or /vendor, and confirm .js files are served as JavaScript.', t.src || '');
+      }
+    }, true);
+    // 3) Catch-all: the engine simply never booted within a reasonable time.
+    setTimeout(function () {
+      if (!window.game) {
+        fail('The engine didn’t start. Open the browser console (F12 / ⋮ → Developer) and read the red error — it’s almost always a file under /vendor or /src returning 404, or being served with the wrong content-type.');
+      }
+    }, 8000);
+  })();
+  </script>
+
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
