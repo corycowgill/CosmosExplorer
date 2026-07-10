@@ -55,6 +55,7 @@ export class Input {
       this.mouse.x = nx;
       this.mouse.y = ny;
       this.mouse.active = true;
+      this.mouse.lastMove = performance.now(); // for idle-decay so a parked cursor stops steering
     });
     window.addEventListener('mousedown', (e) => { if (e.button === 0) this.mouse.down = true; });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
@@ -176,22 +177,27 @@ export class Input {
     if (k.has('ShiftLeft') || k.has('ShiftRight')) s.boost = true;
 
     // ---- Mouse (steer + aim) ----
-    // Only contribute when the pointer has moved and keyboard isn't overriding.
     if (this.mouse.active) {
-      const mx = this.mouse.x, my = this.mouse.y;
-      const deadzone = 0.05;
-      const shape = (v) => {
-        const a = Math.abs(v);
-        if (a < deadzone) return 0;
-        // Reach full deflection at ~65% toward the edge, mostly linear with a
-        // touch of ease near centre — responsive without being twitchy.
-        let t = Math.min(1, (a - deadzone) / (0.65 - deadzone));
-        return Math.sign(v) * t * (0.55 + 0.45 * t);
-      };
-      // Keyboard steering takes precedence when a key is held, otherwise the
-      // mouse aims freely in both axes.
-      if (s.yaw === 0) s.yaw += shape(mx);
-      if (s.pitch === 0) s.pitch += -shape(my);
+      // Idle-decay: fade the mouse's steering authority to zero shortly after the
+      // pointer stops moving, so a parked off-centre cursor no longer turns the
+      // ship forever. Active movement instantly restores full authority.
+      const idle = performance.now() - (this.mouse.lastMove || 0);
+      const gain = idle < 180 ? 1 : Math.max(0, 1 - (idle - 180) / 450);
+
+      if (gain > 0) {
+        const mx = this.mouse.x, my = this.mouse.y;
+        const deadzone = 0.06;
+        const shape = (v) => {
+          const a = Math.abs(v);
+          if (a < deadzone) return 0;
+          // Reach full deflection at ~65% toward the edge, mostly linear.
+          const t = Math.min(1, (a - deadzone) / (0.65 - deadzone));
+          return Math.sign(v) * t * (0.55 + 0.45 * t) * gain;
+        };
+        // Keyboard steering takes precedence when a key is held.
+        if (s.yaw === 0) s.yaw += shape(mx);
+        if (s.pitch === 0) s.pitch += -shape(my);
+      }
       if (this.mouse.down) s.fire = true;
     }
 

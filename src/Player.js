@@ -9,6 +9,8 @@ import { clamp, lerp, damp } from './utils.js';
 import { makeGlowSprite } from './SolarSystem.js';
 
 const FORWARD = new THREE.Vector3(0, 0, -1);
+const _right = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
 
 export class Player {
   constructor(scene) {
@@ -28,9 +30,9 @@ export class Player {
     this.speed = 55;
     this.baseSpeed = 58;
     this.boostSpeed = 135;
-    this.yawRate = 2.7;
-    this.pitchRate = 2.5;
-    this.rollRate = 3.4;
+    this.yawRate = 2.2;
+    this.pitchRate = 2.0;
+    this.rollRate = 3.0;
 
     // Combat / survival
     this.maxHealth = 100;
@@ -196,6 +198,17 @@ export class Player {
     this.group.rotateY(yaw);
     this.group.rotateX(pitch);
     this.group.rotateZ(roll);
+
+    // Roll auto-level: successive local yaw+pitch rotations slowly accumulate roll
+    // (gimbal walk), which would tumble the horizon. Unless the player is actively
+    // rolling, gently rotate back to wings-level (ship's right vector horizontal),
+    // easing off when flying near-vertical where "level" is ambiguous.
+    if (roll === 0) {
+      _right.set(1, 0, 0).applyQuaternion(this.group.quaternion);
+      _fwd.set(0, 0, -1).applyQuaternion(this.group.quaternion);
+      const horizFactor = clamp(1 - Math.abs(_fwd.y) * 1.1, 0, 1);
+      this.group.rotateZ(-_right.y * 3.0 * dt * horizFactor);
+    }
 
     // Visual bank: lean the model into the turn.
     const targetBank = clamp(-input.yaw * 0.5 + -input.roll * 0.3, -0.6, 0.6);
