@@ -66,8 +66,9 @@ mobile, and with an Xbox controller** — no install, no build step.
   cells, weapon upgrades, missile resupply, score bonuses) and a persistent high score.
 - **Quality of life** — pause (Esc / Start / on-screen button) and mute, with full
   cross-platform controls.
-- **Procedural audio** — engine drone, lasers, explosions and UI stings synthesized with
-  the Web Audio API (no sound files).
+- **Procedural audio** — an adaptive synth **soundtrack** (pad, bassline, arpeggio) that
+  turns dark and driving during boss fights and ducks when paused, plus engine drone,
+  lasers, explosions and UI stings — all synthesized with the Web Audio API (no files).
 - **Universal controls** — mouse + keyboard, touch (virtual joystick + fire/boost
   buttons), and Xbox / standard gamepad, all merged through one input layer.
 

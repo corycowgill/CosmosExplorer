@@ -217,6 +217,8 @@ export class Game {
   start() {
     this.audio.init();
     this.audio.startEngine();
+    this.audio.startMusic();
+    this._musicIntensity = 1;
 
     document.getElementById('menu').classList.add('hidden');
     document.getElementById('gameover').classList.add('hidden');
@@ -260,6 +262,9 @@ export class Game {
       this.hud.toast(`WAVE ${this.wave}`, 1.5);
       this.audio.waveClear();
     }
+    // Score the fight: dark & driving during boss waves, energetic otherwise.
+    this._musicIntensity = this.aliens.bossWave ? 2 : 1;
+    this.audio.setMusicIntensity(this._musicIntensity);
   }
 
   gameOver() {
@@ -267,6 +272,7 @@ export class Game {
     this.hud.hideBoss();
     this.input.disable();
     this.audio.stopEngine();
+    this.audio.stopMusic();
     this.audio.gameOver();
     if (this.score > this.hiScore) {
       this.hiScore = Math.floor(this.score);
@@ -287,10 +293,12 @@ export class Game {
       this.state = STATE.PAUSED;
       this.input.disable();
       this.audio.setEngine(0);
+      this.audio.setMusicIntensity(0); // duck the score while paused
       document.getElementById('pause').classList.remove('hidden');
     } else if (!paused && this.state === STATE.PAUSED) {
       this.state = STATE.PLAYING;
       this.input.enable();
+      this.audio.setMusicIntensity(this._musicIntensity || 1);
       document.getElementById('pause').classList.add('hidden');
       this._clock.getDelta(); // discard the paused interval so nothing jumps
     }
