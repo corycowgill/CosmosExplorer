@@ -67,6 +67,10 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.5, 12000);
     this.camera.position.set(0, 130, 1960);
 
+    // Reflection environment: metal hulls now mirror the sun and coloured space,
+    // which is what makes the ships read as polished metal rather than flat plastic.
+    this._buildEnvironment();
+
     this.solar = new SolarSystem(this.scene, this.quality);
 
     // Post-processing: subtle bloom that makes lasers, engines, the sun and
@@ -120,6 +124,57 @@ export class Game {
       `,
     });
     this.composer.addPass(this.gradePass);
+  }
+
+  // Build a PMREM reflection map from a procedural equirectangular "space" image:
+  // a warm sun highlight, coloured nebula gradients and scattered stars. Assigned
+  // to scene.environment so every metallic material reflects it automatically.
+  _buildEnvironment() {
+    const w = 512, h = 256;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    // Base vertical gradient (deep space).
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#0a0f24');
+    g.addColorStop(0.5, '#0a0818');
+    g.addColorStop(1, '#05030f');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    // Coloured nebula patches.
+    const blobs = [['#3b2a80', 0.5], ['#2a5a80', 0.4], ['#802a55', 0.35]];
+    for (const [col, a] of blobs) {
+      for (let i = 0; i < 5; i++) {
+        const x = Math.random() * w, y = Math.random() * h, r = 40 + Math.random() * 90;
+        const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, col); rg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = a; ctx.fillStyle = rg;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    // Bright sun highlight — the key reflection on the metal.
+    const sx = w * 0.62, sy = h * 0.42;
+    const sun = ctx.createRadialGradient(sx, sy, 0, sx, sy, 70);
+    sun.addColorStop(0, '#fff6e0'); sun.addColorStop(0.25, '#ffd27a');
+    sun.addColorStop(0.6, 'rgba(255,140,60,0.5)'); sun.addColorStop(1, 'rgba(255,90,30,0)');
+    ctx.fillStyle = sun; ctx.fillRect(0, 0, w, h);
+    // Stars.
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 400; i++) {
+      ctx.globalAlpha = Math.random() * 0.8 + 0.2;
+      ctx.fillRect(Math.random() * w, Math.random() * h, Math.random() < 0.9 ? 1 : 2, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const rt = pmrem.fromEquirectangular(tex);
+    this.scene.environment = rt.texture;
+    this.scene.environmentIntensity = 0.75;
+    pmrem.dispose();
+    tex.dispose();
   }
 
   _initSubsystems() {

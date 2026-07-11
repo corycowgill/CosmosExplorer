@@ -71,6 +71,42 @@ function makePlanetTexture(baseColor, opts = {}) {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
+  // Derive a normal map from surface luminance so relief catches the sunlight.
+  const normal = makeNormalFromCanvas(c, opts.bands ? 1.2 : 2.2);
+  return { map: tex, normal };
+}
+
+// Build a tangent-space normal map from a canvas's luminance (Sobel gradients).
+function makeNormalFromCanvas(src, strength = 2.0) {
+  const w = src.width, h = src.height;
+  const sctx = src.getContext('2d');
+  const data = sctx.getImageData(0, 0, w, h).data;
+  const lum = (x, y) => {
+    x = (x + w) % w; y = (y + h) % h;
+    const i = (y * w + x) * 4;
+    return (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) / 255;
+  };
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  const img = octx.createImageData(w, h);
+  const o = img.data;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (lum(x-1, y) - lum(x+1, y)) * strength;
+      const dy = (lum(x, y-1) - lum(x, y+1)) * strength;
+      // Normal = normalize(-dx, -dy, 1) mapped to 0..255.
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * w + x) * 4;
+      o[i]   = ((dx / len) * 0.5 + 0.5) * 255;
+      o[i+1] = ((dy / len) * 0.5 + 0.5) * 255;
+      o[i+2] = ((1 / len) * 0.5 + 0.5) * 255;
+      o[i+3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.anisotropy = 4;
   return tex;
 }
 
@@ -292,10 +328,14 @@ export class SolarSystem {
 
       const tex = makePlanetTexture(def.color, def);
       const mat = new THREE.MeshStandardMaterial({
-        map: tex, color: 0xffffff, roughness: 0.95, metalness: 0.0,
+        map: tex.map, normalMap: tex.normal, color: 0xffffff,
+        // Oceans are smoother/shinier and catch a sun glint; land is matte.
+        roughness: def.ocean ? 0.62 : 0.95, metalness: def.ocean ? 0.15 : 0.0,
+        envMapIntensity: def.ocean ? 0.6 : 0.2,
+        normalScale: new THREE.Vector2(0.8, 0.8),
         emissive: def.emissive || 0x000000, emissiveIntensity: 0.35,
       });
-      const mesh = new THREE.Mesh(new THREE.SphereGeometry(def.radius, 40, 40), mat);
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(def.radius, 64, 48), mat);
       mesh.position.set(def.dist, randRange(-60, 60), 0);
       mesh.rotation.z = randRange(-0.4, 0.4);
       pivot.add(mesh);
