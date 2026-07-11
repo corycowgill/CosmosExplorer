@@ -39,8 +39,12 @@
       </div>
     </div>
 
-    <!-- Top right: radar -->
+    <!-- Top right: radar + system buttons -->
     <div class="hud-corner hud-topright">
+      <div class="sys-buttons">
+        <button id="btn-pause" class="sys-btn" title="Pause (Esc)">❚❚</button>
+        <button id="btn-mute" class="sys-btn" title="Mute (M)">🔊</button>
+      </div>
       <div class="hud-panel radar-panel">
         <div class="hud-label">RADAR</div>
         <canvas id="radar" width="150" height="150"></canvas>
@@ -62,8 +66,9 @@
       <div class="hud-panel align-right">
         <div class="hud-label">VELOCITY</div>
         <div id="hud-speed" class="hud-value glow-cyan small">0</div>
-        <div class="hud-sub" id="hud-weapon">PULSE LASER</div>
+        <div class="hud-sub" id="hud-weapon">PULSE LASER <span id="hud-wlevel">L1</span></div>
         <div class="hud-sub">HEAT <span id="hud-heat">0%</span></div>
+        <div class="hud-sub">MISSILES <span id="hud-missiles" class="glow-amber">3</span></div>
       </div>
     </div>
 
@@ -83,6 +88,9 @@
 
     <!-- Damage vignette flash -->
     <div id="damage-flash"></div>
+
+    <!-- Floating score / streak popups anchored to world hits -->
+    <div id="popups"></div>
   </div>
 
   <!-- ============ TOUCH CONTROLS (mobile) ============ -->
@@ -94,7 +102,17 @@
     </div>
     <div id="touch-buttons">
       <button id="btn-boost" class="touch-btn">BOOST</button>
+      <button id="btn-missile" class="touch-btn missile">MSL</button>
       <button id="btn-fire" class="touch-btn fire">FIRE</button>
+    </div>
+  </div>
+
+  <!-- ============ PAUSE SCREEN ============ -->
+  <div id="pause" class="overlay-screen hidden">
+    <div class="menu-inner">
+      <h1 class="title small" style="color:var(--cyan);text-shadow:0 0 30px rgba(56,246,255,0.8)">PAUSED</h1>
+      <button id="btn-resume" class="cta">RESUME</button>
+      <p class="foot">Esc / P to resume · M to mute</p>
     </div>
   </div>
 
@@ -109,23 +127,23 @@
           <h3>DESKTOP</h3>
           <p><b>Mouse / WASD</b> — Fly any direction</p>
           <p><b>W / S</b> — Climb / dive · <b>A / D</b> — Turn</p>
-          <p><b>Q / E</b> — Roll · <b>R / F</b> — Speed</p>
-          <p><b>Click / Space</b> — Fire</p>
-          <p><b>Shift</b> — Boost</p>
+          <p><b>Click / Space</b> — Fire · <b>Shift</b> — Boost</p>
+          <p><b>Right-click / C</b> — Homing missile</p>
+          <p><b>Esc</b> — Pause · <b>M</b> — Mute</p>
         </div>
         <div class="ctrl-col">
           <h3>GAMEPAD</h3>
           <p><b>Left stick</b> — Steer</p>
-          <p><b>RT / A</b> — Fire</p>
+          <p><b>RT / A</b> — Fire · <b>X / Y</b> — Missile</p>
           <p><b>LT / B</b> — Boost</p>
-          <p><b>Bumpers</b> — Roll</p>
+          <p><b>Bumpers</b> — Roll · <b>Start</b> — Pause</p>
         </div>
         <div class="ctrl-col">
           <h3>MOBILE</h3>
           <p><b>Left joystick</b> — Steer</p>
-          <p><b>FIRE</b> — Blast</p>
+          <p><b>FIRE</b> — Blast · <b>MSL</b> — Missile</p>
           <p><b>BOOST</b> — Afterburner</p>
-          <p>Tilt into the turns!</p>
+          <p>Grab glowing power-ups!</p>
         </div>
       </div>
       <p class="foot">A three.js arcade flight-shooter · Best with sound on 🔊</p>

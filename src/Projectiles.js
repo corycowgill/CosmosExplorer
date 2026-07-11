@@ -6,6 +6,9 @@ import * as THREE from 'three';
 
 const PLAYER_COLOR = 0x66ffcc;
 const ENEMY_COLOR = 0xff4466;
+const FWD_Z = new THREE.Vector3(0, 0, 1);
+const TMP1 = new THREE.Vector3();
+const TMP2 = new THREE.Vector3();
 
 class Bolt {
   constructor(scene) {
@@ -31,25 +34,41 @@ class Bolt {
   spawn(pos, vel, opts) {
     this.mesh.position.copy(pos);
     this.vel.copy(vel);
+    this.speed = vel.length();
     this.life = opts.life ?? 2.2;
     this.enemy = !!opts.enemy;
     this.damage = opts.damage ?? 1;
     this.radius = opts.radius ?? 3.2;
-    const color = opts.enemy ? ENEMY_COLOR : PLAYER_COLOR;
+    this.missile = !!opts.missile;
+    this.homingTarget = opts.homingTarget || null;
+    this.turnRate = opts.turnRate ?? 3.0;
+    const color = opts.missile ? 0xffaa33 : (opts.enemy ? ENEMY_COLOR : PLAYER_COLOR);
     this.mat.color.setHex(color);
     this.glow.material.color.setHex(color);
     // Orient the bolt along its velocity.
     const dir = vel.clone().normalize();
     this.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-    const len = opts.enemy ? 1.0 : 1.4;
-    this.mesh.scale.set(1, 1, len);
-    this.glow.scale.set(opts.enemy ? 8 : 11, opts.enemy ? 8 : 11, 1);
+    const len = opts.missile ? 1.8 : (opts.enemy ? 1.0 : 1.4);
+    const girth = opts.missile ? 1.6 : 1;
+    this.mesh.scale.set(girth, girth, len);
+    const gs = opts.missile ? 13 : (opts.enemy ? 8 : 11);
+    this.glow.scale.set(gs, gs, 1);
     this.mesh.visible = true;
     this.alive = true;
   }
 
   update(dt) {
     if (!this.alive) return;
+    // Homing: bend velocity toward a live target, capped by turn rate.
+    if (this.missile && this.homingTarget && this.homingTarget.alive) {
+      const desired = TMP1.subVectors(this.homingTarget.position, this.mesh.position).normalize().multiplyScalar(this.speed);
+      // Lerp toward desired, then renormalize to keep constant speed.
+      this.vel.lerp(desired, Math.min(1, this.turnRate * dt));
+      const spd = this.vel.length();
+      if (spd > 0) this.vel.multiplyScalar(this.speed / spd);
+      const dir = TMP2.copy(this.vel).normalize();
+      this.mesh.quaternion.setFromUnitVectors(FWD_Z, dir);
+    }
     this.mesh.position.addScaledVector(this.vel, dt);
     this.life -= dt;
     if (this.life <= 0) this.kill();

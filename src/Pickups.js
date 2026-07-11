@@ -7,9 +7,11 @@ import { makeGlowSprite } from './SolarSystem.js';
 import { randRange } from './utils.js';
 
 const KINDS = {
-  repair: { color: 0x46ffa0, label: 'HULL +25' },
-  shield: { color: 0x38f6ff, label: 'SHIELD +40' },
-  bonus:  { color: 0xffd54a, label: 'BONUS' },
+  repair:  { color: 0x46ffa0, label: 'HULL +25' },
+  shield:  { color: 0x38f6ff, label: 'SHIELD +40' },
+  bonus:   { color: 0xffd54a, label: 'BONUS' },
+  weapon:  { color: 0xff5ec4, label: 'WEAPON UP' },
+  missile: { color: 0xffaa33, label: 'MISSILES +2' },
 };
 
 class Pickup {
@@ -84,11 +86,19 @@ export class Pickups {
   maybeDrop(pos, biasHeal = false) {
     const r = Math.random();
     let kind = null;
-    if (r < 0.10) kind = 'repair';
-    else if (r < 0.22) kind = 'shield';
-    else if (r < 0.30) kind = 'bonus';
-    if (biasHeal && !kind && r < 0.5) kind = 'shield';
+    if (r < 0.05) kind = 'weapon';       // rare: upgrade the pulse laser
+    else if (r < 0.13) kind = 'missile'; // uncommon: +2 homing missiles
+    else if (r < 0.22) kind = 'repair';
+    else if (r < 0.34) kind = 'shield';
+    else if (r < 0.42) kind = 'bonus';
+    if (biasHeal && !kind && r < 0.6) kind = 'shield';
     if (!kind) return;
+    const p = this.pool.find((x) => !x.alive);
+    if (p) p.spawn(pos, kind);
+  }
+
+  // Force a specific drop (used for guaranteed rewards, e.g. bosses/milestones).
+  drop(pos, kind) {
     const p = this.pool.find((x) => !x.alive);
     if (p) p.spawn(pos, kind);
   }

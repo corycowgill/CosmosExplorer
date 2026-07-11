@@ -19,7 +19,7 @@ import { Input } from './Input.js';
 import { AudioFX } from './Audio.js';
 import { clamp, lerp, damp, isTouchDevice } from './utils.js';
 
-const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover' };
+const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover', PAUSED: 'paused' };
 
 export class Game {
   constructor() {
@@ -144,6 +144,12 @@ export class Game {
     const restart = document.getElementById('btn-restart');
     start.addEventListener('click', () => this.start());
     restart.addEventListener('click', () => this.start());
+    const resume = document.getElementById('btn-resume');
+    if (resume) resume.addEventListener('click', () => this._setPaused(false));
+
+    this.muted = false;
+    this._streakCount = 0;
+    this._streakTimer = 0;
 
     // Hide the loader once modules are up.
     const loader = document.getElementById('loader');
@@ -159,14 +165,19 @@ export class Game {
 
     document.getElementById('menu').classList.add('hidden');
     document.getElementById('gameover').classList.add('hidden');
+    document.getElementById('pause').classList.add('hidden');
     this.hud.show();
 
     this.score = 0;
     this.kills = 0;
     this.combo = 1;
     this.comboTimer = 0;
+    this._streakCount = 0;
+    this._streakTimer = 0;
     this.hud.setScore(0);
     this.hud.setCombo(1);
+    this.hud.setWeaponLevel(1);
+    this.hud.setMissiles(this.player.missiles ?? 3);
 
     this.player.reset();
     this.aliens.reset();
@@ -210,13 +221,50 @@ export class Game {
     }, 1400);
   }
 
+  _setPaused(paused) {
+    if (paused && this.state === STATE.PLAYING) {
+      this.state = STATE.PAUSED;
+      this.input.disable();
+      this.audio.setEngine(0);
+      document.getElementById('pause').classList.remove('hidden');
+    } else if (!paused && this.state === STATE.PAUSED) {
+      this.state = STATE.PLAYING;
+      this.input.enable();
+      document.getElementById('pause').classList.add('hidden');
+      this._clock.getDelta(); // discard the paused interval so nothing jumps
+    }
+  }
+
+  _toggleMute() {
+    this.muted = !this.muted;
+    this.audio.enabled = !this.muted;
+    if (this.audio.master) this.audio.master.gain.value = this.muted ? 0 : 0.55;
+    this.hud.setMuted(this.muted);
+  }
+
+  // Project a world position to screen pixels (returns null if behind camera).
+  _toScreen(worldPos) {
+    const p = worldPos.clone().project(this.camera);
+    if (p.z > 1) return null;
+    return { x: (p.x * 0.5 + 0.5) * window.innerWidth, y: (-p.y * 0.5 + 0.5) * window.innerHeight };
+  }
+
   // ---------------- main loop ----------------
   _loop() {
     const dt = Math.min(0.05, this._clock.getDelta());
     this._elapsed = (this._elapsed || 0) + dt;
 
+    // One-shot buttons: pause & mute, handled in any state.
+    const edges = this.input.consumeEdges();
+    if (edges.mute) this._toggleMute();
+    if (edges.pause && (this.state === STATE.PLAYING || this.state === STATE.PAUSED)) {
+      this._setPaused(this.state === STATE.PLAYING);
+    }
+
     if (this.state === STATE.PLAYING) {
       this._updatePlaying(dt);
+    } else if (this.state === STATE.PAUSED) {
+      // Frozen: render the frame but advance nothing.
     } else {
       // Idle camera drift for menu / game-over ambience.
       this.solar.update(dt, this.camera.position);
@@ -253,7 +301,7 @@ export class Game {
     this.explosions.update(dt);
     this.solar.update(dt, this.camera.position);
 
-    // Firing.
+    // Firing — primary pulse laser.
     if (input.fire) {
       const shots = this.player.tryFire();
       if (shots) {
@@ -262,6 +310,20 @@ export class Game {
           this.projectiles.fire(s.pos, vel, { enemy: false, damage: 1, life: 1.8, radius: 3.5 });
         }
         this.audio.laser();
+      }
+    }
+
+    // Firing — homing missile (locks the current target if there is one).
+    if (input.missile) {
+      const m = this.player.tryFireMissile();
+      if (m) {
+        const vel = m.dir.clone().multiplyScalar(300).add(this.player.velocity);
+        this.projectiles.fire(m.pos, vel, {
+          enemy: false, missile: true, damage: 5, life: 4.0, radius: 5,
+          homingTarget: this._lockTarget || null, turnRate: 2.6,
+        });
+        this.audio.laser();
+        this.hud.setMissiles(this.player.missiles);
       }
     }
 
@@ -278,6 +340,11 @@ export class Game {
     if (this.comboTimer > 0) {
       this.comboTimer -= dt;
       if (this.comboTimer <= 0) { this.combo = 1; this.hud.setCombo(1); }
+    }
+    // Killstreak window.
+    if (this._streakTimer > 0) {
+      this._streakTimer -= dt;
+      if (this._streakTimer <= 0) this._streakCount = 0;
     }
 
     // Engine audio tracks speed.
@@ -304,14 +371,27 @@ export class Game {
         if (d < rr2 && d < best) { best = d; hitAlien = a; }
       }
       if (hitAlien) {
+        const hitPos = b.mesh.position.clone();
+        const wasMissile = b.missile;
         b.kill();
         const dead = hitAlien.hit(b.damage);
-        if (dead) {
-          this._onAlienDestroyed(hitAlien);
-        } else {
-          // Spark on non-lethal hit.
-          this.explosions.burst(b.mesh.position.clone(), { scale: 0.35, color: 0xffee88 });
+        if (dead) this._onAlienDestroyed(hitAlien);
+        else {
+          this.explosions.burst(hitPos, { scale: 0.35, color: 0xffee88 });
           this.audio.hit();
+        }
+        // Missiles detonate with an area blast that damages nearby aliens.
+        if (wasMissile) {
+          this.explosions.burst(hitPos, { scale: 1.3, big: true, color: 0xffaa33 });
+          this.audio.explosion(true);
+          this._addShake(0.7, 0.35);
+          const splashR = 40;
+          for (const a of this.aliens.aliens) {
+            if (!a.alive || a === hitAlien) continue;
+            if (a.position.distanceToSquared(hitPos) < splashR * splashR) {
+              if (a.hit(3)) this._onAlienDestroyed(a);
+            }
+          }
         }
       }
     });
@@ -381,6 +461,19 @@ export class Game {
     // Camera shake scaled to blast.
     this._addShake(big ? 0.9 : 0.4, big ? 0.5 : 0.28);
 
+    // Floating score popup at the kill location.
+    const screen = this._toScreen(pos);
+    if (screen) {
+      const color = this.combo >= 3 ? '#ffd54a' : '#eafcff';
+      this.hud.popup(screen.x, screen.y, '+' + gained, { color, big: big || this.combo >= 4 });
+    }
+
+    // Killstreak callouts (kills bunched close in time).
+    this._streakCount++;
+    this._streakTimer = 1.4;
+    const names = { 3: 'TRIPLE!', 5: 'RAMPAGE!', 8: 'UNSTOPPABLE!', 12: 'GODLIKE!' };
+    if (names[this._streakCount]) this.hud.toast(names[this._streakCount], 1.2);
+
     // Drops (cruisers are more generous).
     this.pickups.maybeDrop(pos, big);
   }
@@ -398,6 +491,16 @@ export class Game {
     if (kind === 'repair') { this.player.heal(25, 0); this.hud.toast('HULL RESTORED', 1.0); }
     else if (kind === 'shield') { this.player.heal(0, 40); this.hud.toast('SHIELDS +40', 1.0); }
     else if (kind === 'bonus') { this.score += 250; this.hud.setScore(this.score); this.hud.toast('+250', 0.9); }
+    else if (kind === 'weapon') {
+      const lvl = this.player.upgradeWeapon();
+      this.hud.toast(lvl >= this.player.maxWeaponLevel ? 'WEAPON MAXED!' : 'WEAPON UP  L' + lvl, 1.2);
+      this.hud.setWeaponLevel(lvl);
+    }
+    else if (kind === 'missile') {
+      this.player.addMissiles(2);
+      this.hud.toast('MISSILES +2', 1.0);
+      this.hud.setMissiles(this.player.missiles);
+    }
     this.audio.pickup();
   }
 
@@ -500,6 +603,7 @@ export class Game {
     );
     this.hud.setSpeed(this.player.speed);
     this.hud.setHeat(this.player.heat * 100, this.player.overheated);
+    this.hud.setMissiles(this.player.missiles);
     this.hud.drawRadar(this.player, this.aliens.aliens);
   }
 

@@ -10,20 +10,25 @@
 //   throttle: -1 (brake) .. 1 (accelerate)
 //   fire   : boolean
 //   boost  : boolean
+//   missile: boolean (fire a homing missile)
+// One-shot edges (consumed via consumeEdges): pause, mute.
 
 import { clamp, isTouchDevice } from './utils.js';
 
 export class Input {
   constructor() {
-    this.state = { yaw: 0, pitch: 0, roll: 0, throttle: 0, fire: false, boost: false };
+    this.state = { yaw: 0, pitch: 0, roll: 0, throttle: 0, fire: false, boost: false, missile: false };
 
     this.keys = new Set();
-    this.mouse = { x: 0, y: 0, active: false, down: false };
-    this.touch = { steerX: 0, steerY: 0, fire: false, boost: false };
+    this.mouse = { x: 0, y: 0, active: false, down: false, right: false };
+    this.touch = { steerX: 0, steerY: 0, fire: false, boost: false, missile: false };
+    this.edges = { pause: false, mute: false };
+    this._padPrev = {};
     this.enabled = false;
 
     this._bindKeyboard();
     this._bindMouse();
+    this._bindTouchButtons();
     if (isTouchDevice) this._bindTouch();
   }
 
@@ -32,18 +37,43 @@ export class Input {
     this.enabled = false;
     this.keys.clear();
     this.mouse.down = false;
+    this.mouse.right = false;
     this.mouse.active = false;
-    this.touch = { steerX: 0, steerY: 0, fire: false, boost: false };
+    this.touch = { steerX: 0, steerY: 0, fire: false, boost: false, missile: false };
+  }
+
+  // Returns and clears one-shot button presses (pause / mute).
+  consumeEdges() {
+    const e = { ...this.edges };
+    this.edges.pause = false;
+    this.edges.mute = false;
+    return e;
   }
 
   // ------------------------------------------------------------------
   _bindKeyboard() {
     window.addEventListener('keydown', (e) => {
       if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+      if (e.repeat) return;
+      if (e.code === 'Escape' || e.code === 'KeyP') this.edges.pause = true;
+      if (e.code === 'KeyM') this.edges.mute = true;
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+  }
+
+  // Pause / mute / (mobile) missile buttons that live outside the game canvas.
+  _bindTouchButtons() {
+    const bind = (id, fn) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const h = (e) => { e.preventDefault(); e.stopPropagation(); fn(); };
+      el.addEventListener('click', h);
+      el.addEventListener('touchstart', h, { passive: false });
+    };
+    bind('btn-pause', () => { this.edges.pause = true; });
+    bind('btn-mute', () => { this.edges.mute = true; });
   }
 
   _bindMouse() {
@@ -57,8 +87,15 @@ export class Input {
       this.mouse.active = true;
       this.mouse.lastMove = performance.now(); // for idle-decay so a parked cursor stops steering
     });
-    window.addEventListener('mousedown', (e) => { if (e.button === 0) this.mouse.down = true; });
-    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
+    window.addEventListener('mousedown', (e) => {
+      if (e.button === 0) this.mouse.down = true;
+      if (e.button === 2) this.mouse.right = true; // right click = missile
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.mouse.down = false;
+      if (e.button === 2) this.mouse.right = false;
+    });
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
     if (root) root.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
@@ -113,8 +150,9 @@ export class Input {
     zone.addEventListener('touchend', onEnd);
     zone.addEventListener('touchcancel', onEnd);
 
-    // Fire & boost buttons
+    // Fire, boost & missile buttons
     const hold = (btn, prop) => {
+      if (!btn) return;
       const on = (e) => { e.preventDefault(); this.touch[prop] = true; };
       const off = (e) => { e.preventDefault(); this.touch[prop] = false; };
       btn.addEventListener('touchstart', on, { passive: false });
@@ -123,6 +161,7 @@ export class Input {
     };
     hold(fireBtn, 'fire');
     hold(boostBtn, 'boost');
+    hold(document.getElementById('btn-missile'), 'missile');
   }
 
   // ------------------------------------------------------------------
@@ -146,18 +185,24 @@ export class Input {
     if (val(7) > 0.35 || btn(0)) s.fire = true;
     // Boost: LT (6) or B (1)
     if (val(6) > 0.35 || btn(1)) s.boost = true;
+    // Missile: X (2) or Y (3)
+    if (btn(2) || btn(3)) s.missile = true;
     // Roll with bumpers LB(4)/RB(5)
     if (btn(4)) s.roll -= 1;
     if (btn(5)) s.roll += 1;
     // D-pad up/down as throttle
     if (btn(12)) s.throttle += 1;
     if (btn(13)) s.throttle -= 1;
+    // Start (9) pauses — edge-detected so a hold doesn't spam it.
+    const start = btn(9);
+    if (start && !this._padPrev.start) this.edges.pause = true;
+    this._padPrev.start = start;
   }
 
   // Called once per frame. Produces the merged control state.
   update() {
     const s = this.state;
-    s.yaw = 0; s.pitch = 0; s.roll = 0; s.throttle = 0; s.fire = false; s.boost = false;
+    s.yaw = 0; s.pitch = 0; s.roll = 0; s.throttle = 0; s.fire = false; s.boost = false; s.missile = false;
     if (!this.enabled) return s;
 
     // ---- Keyboard ----
@@ -175,6 +220,7 @@ export class Input {
     if (k.has('KeyF') || k.has('Minus')) s.throttle -= 1;
     if (k.has('Space')) s.fire = true;
     if (k.has('ShiftLeft') || k.has('ShiftRight')) s.boost = true;
+    if (k.has('KeyC') || k.has('ControlLeft')) s.missile = true;
 
     // ---- Mouse (steer + aim) ----
     if (this.mouse.active) {
@@ -199,6 +245,7 @@ export class Input {
         if (s.pitch === 0) s.pitch += -shape(my);
       }
       if (this.mouse.down) s.fire = true;
+      if (this.mouse.right) s.missile = true;
     }
 
     // ---- Touch ----
@@ -208,6 +255,7 @@ export class Input {
     }
     if (this.touch.fire) s.fire = true;
     if (this.touch.boost) s.boost = true;
+    if (this.touch.missile) s.missile = true;
 
     // ---- Gamepad ----
     this._pollGamepad(s);

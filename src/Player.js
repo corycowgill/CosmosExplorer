@@ -11,6 +11,7 @@ import { makeGlowSprite } from './SolarSystem.js';
 const FORWARD = new THREE.Vector3(0, 0, -1);
 const _right = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
+const _up = new THREE.Vector3();
 
 export class Player {
   constructor(scene) {
@@ -44,10 +45,18 @@ export class Player {
 
     // Weapon
     this.fireCooldown = 0;
-    this.fireRate = 0.14;   // seconds between shots
+    this.fireRate = 0.14;   // seconds between shots (tightens as weapon levels up)
     this.heat = 0;          // 0..1, overheats weapon if maxed
     this.overheated = false;
     this.muzzleFlash = 0;
+    this.weaponLevel = 1;   // 1..3 — more barrels + tighter fire
+    this.maxWeaponLevel = 3;
+
+    // Homing missiles (secondary)
+    this.missiles = 3;
+    this.maxMissiles = 6;
+    this.missileCooldown = 0;
+    this.missileRegen = 0;
 
     this.radius = 6;
     this.bank = 0;
@@ -164,6 +173,10 @@ export class Player {
     this.alive = true;
     this.speed = this.baseSpeed;
     this.fireCooldown = 0;
+    this.weaponLevel = 1;
+    this.missiles = 3;
+    this.missileCooldown = 0;
+    this.missileRegen = 0;
     // Seed the trail at the ship so it doesn't streak from the origin.
     const p = this.group.position;
     for (let i = 0; i < this.trailCount; i++) {
@@ -243,10 +256,19 @@ export class Player {
 
     // ---- Weapon heat / cooldown ----
     if (this.fireCooldown > 0) this.fireCooldown -= dt;
+    if (this.missileCooldown > 0) this.missileCooldown -= dt;
     if (this.muzzleFlash > 0) this.muzzleFlash -= dt;
     // Cool down heat over time.
     this.heat = clamp(this.heat - dt * 0.32, 0, 1);
     if (this.overheated && this.heat < 0.35) this.overheated = false;
+
+    // ---- Missile slow regen (a fresh missile every ~9s, up to max) ----
+    if (this.missiles < this.maxMissiles) {
+      this.missileRegen += dt;
+      if (this.missileRegen >= 9) { this.missileRegen = 0; this.missiles++; }
+    } else {
+      this.missileRegen = 0;
+    }
 
     // ---- Shield regen ----
     if (this.shieldRegenDelay > 0) this.shieldRegenDelay -= dt;
@@ -271,22 +293,59 @@ export class Player {
     this.trail.material.size = boosting ? 4.2 : 3;
   }
 
-  // Fire two bolts from alternating muzzles. Returns array of {pos, dir} or null if unable.
+  // Fire the primary weapon. Returns an array of {pos, dir} bolts, or null if unable.
+  // Higher weapon levels add angled barrels (spread) and a tighter fire rate.
   tryFire() {
     if (this.fireCooldown > 0 || this.overheated || !this.alive) return null;
-    this.fireCooldown = this.fireRate;
+    // Level 3 fires noticeably faster.
+    this.fireCooldown = this.fireRate * (this.weaponLevel >= 3 ? 0.7 : 1);
     this.heat = clamp(this.heat + 0.09, 0, 1);
     if (this.heat >= 1) this.overheated = true;
     this.muzzleFlash = 0.05;
 
-    const dir = this.forwardVector();
+    const fwd = this.forwardVector();
+    const up = _up.set(0, 1, 0).applyQuaternion(this.group.quaternion);
+    const right = _right.set(1, 0, 0).applyQuaternion(this.group.quaternion);
     const shots = [];
+    // Two main barrels straight ahead.
     for (const m of this.muzzles) {
-      const pos = m.clone().applyMatrix4(this.model.matrixWorld);
-      shots.push({ pos, dir: dir.clone() });
+      shots.push({ pos: m.clone().applyMatrix4(this.model.matrixWorld), dir: fwd.clone() });
+    }
+    // Level 2+: outward spread pair.
+    if (this.weaponLevel >= 2) {
+      for (const sign of [-1, 1]) {
+        const d = fwd.clone().addScaledVector(right, sign * 0.14).normalize();
+        const pos = this.muzzles[sign < 0 ? 0 : 1].clone().applyMatrix4(this.model.matrixWorld);
+        shots.push({ pos, dir: d });
+      }
+    }
+    // Level 3: an extra pair angled up/down for a wider fan.
+    if (this.weaponLevel >= 3) {
+      for (const sign of [-1, 1]) {
+        const d = fwd.clone().addScaledVector(up, sign * 0.1).addScaledVector(right, sign * 0.06).normalize();
+        const pos = this.muzzles[sign < 0 ? 0 : 1].clone().applyMatrix4(this.model.matrixWorld);
+        shots.push({ pos, dir: d });
+      }
     }
     return shots;
   }
+
+  // Fire a homing missile if one is loaded. Returns {pos, dir} or null.
+  tryFireMissile() {
+    if (this.missiles <= 0 || this.missileCooldown > 0 || !this.alive) return null;
+    this.missiles--;
+    this.missileCooldown = 0.55;
+    const dir = this.forwardVector();
+    const pos = new THREE.Vector3(0, -0.8, -3).applyMatrix4(this.model.matrixWorld);
+    return { pos, dir: dir.clone() };
+  }
+
+  upgradeWeapon() {
+    this.weaponLevel = Math.min(this.maxWeaponLevel, this.weaponLevel + 1);
+    return this.weaponLevel;
+  }
+
+  addMissiles(n) { this.missiles = clamp(this.missiles + n, 0, this.maxMissiles); }
 
   damageBy(amount) {
     if (!this.alive) return;

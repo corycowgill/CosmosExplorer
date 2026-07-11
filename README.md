@@ -48,15 +48,21 @@ mobile, and with an Xbox controller** — no install, no build step.
   - **Scout** — fast, fragile, swarms you.
   - **Fighter** — circle-strafes and fires often.
   - **Cruiser** — slow, tanky flying saucer that hits hard and drops loot.
+- **Two weapons** — a **pulse laser** that upgrades through three levels (adding spread
+  barrels and a faster fire rate) and **homing missiles** that lock onto your target and
+  detonate in an area blast.
 - **Juicy combat VFX** — additive particle explosions with debris, expanding shockwave
-  rings, flash sprites, dynamic lights, camera shake and an `UnrealBloom` post pipeline
-  that makes lasers, engines and blasts glow.
+  rings, flash sprites, dynamic lights, camera shake, floating score popups, killstreak
+  callouts (TRIPLE! / RAMPAGE! / GODLIKE!) and an `UnrealBloom` post pipeline plus a
+  cinematic color-grade (vignette, chromatic aberration, film grain).
 - **A futuristic HUD** — animated score counter, wave & combo tracker, hull/shield bars,
-  velocity + weapon heat readout, a live **radar**, a target **lock-on** reticle, toast
-  messages and a damage vignette.
-- **Wave progression & scoring** — escalating enemy waves, a combo multiplier that
-  rewards fast chained kills, collectible power-ups (hull repair, shield cells, score
-  bonuses) and a persistent local high score.
+  velocity + weapon heat, weapon level, missile count, a live **radar**, a target
+  **lock-on** reticle, toast messages and a damage vignette.
+- **Wave progression & scoring** — escalating enemy waves, a combo multiplier and
+  killstreaks that reward fast chained kills, collectible power-ups (hull repair, shield
+  cells, weapon upgrades, missile resupply, score bonuses) and a persistent high score.
+- **Quality of life** — pause (Esc / Start / on-screen button) and mute, with full
+  cross-platform controls.
 - **Procedural audio** — engine drone, lasers, explosions and UI stings synthesized with
   the Web Audio API (no sound files).
 - **Universal controls** — mouse + keyboard, touch (virtual joystick + fire/boost

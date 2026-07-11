@@ -17,14 +17,19 @@ export class HUD {
       speed: document.getElementById('hud-speed'),
       heat: document.getElementById('hud-heat'),
       weapon: document.getElementById('hud-weapon'),
+      wlevel: document.getElementById('hud-wlevel'),
+      missiles: document.getElementById('hud-missiles'),
       toast: document.getElementById('toast'),
       damage: document.getElementById('damage-flash'),
       lock: document.getElementById('lock-marker'),
+      popups: document.getElementById('popups'),
+      mute: document.getElementById('btn-mute'),
     };
     this.radar = document.getElementById('radar');
     this.rctx = this.radar.getContext('2d');
     this._toastTimer = 0;
     this._shownScore = 0;
+    this._popupCount = 0;
   }
 
   show() { this.el.hud.classList.remove('hidden'); }
@@ -46,8 +51,31 @@ export class HUD {
   setSpeed(v) { this.el.speed.textContent = Math.round(v); }
   setHeat(pct, overheated) {
     this.el.heat.textContent = Math.round(pct) + '%';
-    this.el.weapon.textContent = overheated ? 'OVERHEATED!' : 'PULSE LASER';
-    this.el.weapon.style.color = overheated ? '#ff5b7a' : '';
+    if (overheated) {
+      this.el.weapon.firstChild.textContent = 'OVERHEATED! ';
+      this.el.weapon.style.color = '#ff5b7a';
+    } else {
+      this.el.weapon.firstChild.textContent = 'PULSE LASER ';
+      this.el.weapon.style.color = '';
+    }
+  }
+
+  setWeaponLevel(level) { this.el.wlevel.textContent = 'L' + level; }
+  setMissiles(n) { this.el.missiles.textContent = n; }
+  setMuted(muted) { this.el.mute.textContent = muted ? '🔇' : '🔊'; }
+
+  // Spawn a floating popup at a screen position (score gains, streak names, etc.).
+  popup(screenX, screenY, text, opts = {}) {
+    if (this._popupCount > 24) return; // safety cap
+    const el = document.createElement('div');
+    el.className = 'popup' + (opts.big ? ' big' : '');
+    el.textContent = text;
+    el.style.left = screenX + 'px';
+    el.style.top = screenY + 'px';
+    el.style.color = opts.color || '#eafcff';
+    this.el.popups.appendChild(el);
+    this._popupCount++;
+    setTimeout(() => { el.remove(); this._popupCount--; }, 1100);
   }
 
   toast(msg, dur = 1.8) {
