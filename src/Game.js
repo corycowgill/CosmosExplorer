@@ -167,6 +167,7 @@ export class Game {
     document.getElementById('gameover').classList.add('hidden');
     document.getElementById('pause').classList.add('hidden');
     this.hud.show();
+    this.hud.hideBoss();
 
     this.score = 0;
     this.kills = 0;
@@ -196,7 +197,11 @@ export class Game {
     this.wave++;
     this.aliens.startWave(this.wave);
     this.hud.setWave(this.wave);
-    if (this.wave > 1) {
+    if (this.aliens.bossWave) {
+      this.hud.toast('⚠  MOTHERSHIP INBOUND  ⚠', 2.4);
+      this.hud.showBoss();
+      this.audio.explosion(true); // ominous boom
+    } else if (this.wave > 1) {
       this.hud.toast(`WAVE ${this.wave}`, 1.5);
       this.audio.waveClear();
     }
@@ -204,6 +209,7 @@ export class Game {
 
   gameOver() {
     this.state = STATE.GAMEOVER;
+    this.hud.hideBoss();
     this.input.disable();
     this.audio.stopEngine();
     this.audio.gameOver();
@@ -444,8 +450,9 @@ export class Game {
 
   _onAlienDestroyed(a) {
     const pos = a.position.clone();
-    const big = a.type === 'cruiser';
-    this.explosions.burst(pos, { scale: big ? 1.8 : (a.type === 'fighter' ? 1.1 : 0.8), big, color: a.def.glow });
+    const isBoss = a.type === 'boss';
+    const big = a.type === 'cruiser' || isBoss;
+    this.explosions.burst(pos, { scale: isBoss ? 3.2 : (big ? 1.8 : (a.type === 'fighter' ? 1.1 : 0.8)), big, color: a.def.glow });
     this.audio.explosion(big);
     a.kill();
     this.kills++;
@@ -459,7 +466,7 @@ export class Game {
     this.hud.setCombo(this.combo);
 
     // Camera shake scaled to blast.
-    this._addShake(big ? 0.9 : 0.4, big ? 0.5 : 0.28);
+    this._addShake(isBoss ? 1.6 : (big ? 0.9 : 0.4), isBoss ? 0.9 : (big ? 0.5 : 0.28));
 
     // Floating score popup at the kill location.
     const screen = this._toScreen(pos);
@@ -467,6 +474,8 @@ export class Game {
       const color = this.combo >= 3 ? '#ffd54a' : '#eafcff';
       this.hud.popup(screen.x, screen.y, '+' + gained, { color, big: big || this.combo >= 4 });
     }
+
+    if (isBoss) { this._onBossDefeated(pos); return; }
 
     // Killstreak callouts (kills bunched close in time).
     this._streakCount++;
@@ -476,6 +485,36 @@ export class Game {
 
     // Drops (cruisers are more generous).
     this.pickups.maybeDrop(pos, big);
+  }
+
+  // Boss defeated: a cascade of explosions, guaranteed loot, and a clean sweep.
+  _onBossDefeated(pos) {
+    this.hud.hideBoss();
+    this.hud.toast('MOTHERSHIP DESTROYED!', 2.6);
+    // Explosion cascade around the wreck.
+    for (let i = 0; i < 10; i++) {
+      const off = new THREE.Vector3((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*50);
+      const delay = i * 60;
+      setTimeout(() => {
+        if (this.state === STATE.PLAYING || this.state === STATE.PAUSED) {
+          this.explosions.burst(pos.clone().add(off), { scale: 1.6, big: true, color: 0xdd88ff });
+        }
+      }, delay);
+    }
+    this.audio.explosion(true);
+    this._addShake(2.0, 1.0);
+    // Guaranteed loot around the wreck.
+    this.pickups.drop(pos.clone().add(new THREE.Vector3(12, 0, 0)), 'weapon');
+    this.pickups.drop(pos.clone().add(new THREE.Vector3(-12, 0, 0)), 'missile');
+    this.pickups.drop(pos.clone().add(new THREE.Vector3(0, 12, 0)), 'repair');
+    this.pickups.drop(pos.clone().add(new THREE.Vector3(0, -12, 0)), 'shield');
+    // Clear the escorts in a satisfying sweep.
+    for (const e of this.aliens.aliens) {
+      if (e.alive && e.type !== 'boss') {
+        this.explosions.burst(e.position.clone(), { scale: 0.8, color: e.def.glow });
+        e.kill();
+      }
+    }
   }
 
   _damagePlayer(amount) {
@@ -604,6 +643,7 @@ export class Game {
     this.hud.setSpeed(this.player.speed);
     this.hud.setHeat(this.player.heat * 100, this.player.overheated);
     this.hud.setMissiles(this.player.missiles);
+    if (this.aliens.bossAlive()) this.hud.setBossHealth(this.aliens.bossHealthPct());
     this.hud.drawRadar(this.player, this.aliens.aliens);
   }
 

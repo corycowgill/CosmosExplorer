@@ -24,6 +24,8 @@ export class HUD {
       lock: document.getElementById('lock-marker'),
       popups: document.getElementById('popups'),
       mute: document.getElementById('btn-mute'),
+      bossBar: document.getElementById('boss-bar'),
+      bossFill: document.getElementById('boss-fill'),
     };
     this.radar = document.getElementById('radar');
     this.rctx = this.radar.getContext('2d');
@@ -59,6 +61,10 @@ export class HUD {
       this.el.weapon.style.color = '';
     }
   }
+
+  showBoss() { this.el.bossBar.classList.remove('hidden'); this.setBossHealth(100); }
+  hideBoss() { this.el.bossBar.classList.add('hidden'); }
+  setBossHealth(pct) { this.el.bossFill.style.width = clamp(pct, 0, 100) + '%'; }
 
   setWeaponLevel(level) { this.el.wlevel.textContent = 'L' + level; }
   setMissiles(n) { this.el.missiles.textContent = n; }

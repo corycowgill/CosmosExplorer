@@ -48,6 +48,9 @@ mobile, and with an Xbox controller** — no install, no build step.
   - **Scout** — fast, fragile, swarms you.
   - **Fighter** — circle-strafes and fires often.
   - **Cruiser** — slow, tanky flying saucer that hits hard and drops loot.
+- **Boss fights** — every 5th wave a giant **Mothership** warps in with a dedicated
+  health bar, orbiting at range while it unleashes bolt fans and summons escorts. Down
+  it for a huge score, a cascade of explosions and a pile of guaranteed loot.
 - **Two weapons** — a **pulse laser** that upgrades through three levels (adding spread
   barrels and a faster fire rate) and **homing missiles** that lock onto your target and
   detonate in an area blast.
