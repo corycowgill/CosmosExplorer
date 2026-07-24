@@ -60,7 +60,8 @@ mobile, and with an Xbox controller** — no install, no build step.
   cinematic color-grade (vignette, chromatic aberration, film grain).
 - **A futuristic HUD** — animated score counter, wave & combo tracker, hull/shield bars,
   velocity + weapon heat, weapon level, missile count, a live **radar**, a target
-  **lock-on** reticle, toast messages and a damage vignette.
+  **lock-on** reticle, **off-screen enemy arrows** (with a distinct boss marker), an
+  **incoming-damage direction** indicator, toast messages and a damage vignette.
 - **Wave progression & scoring** — escalating enemy waves, a combo multiplier and
   killstreaks that reward fast chained kills, collectible power-ups (hull repair, shield
   cells, weapon upgrades, missile resupply, score bonuses) and a persistent high score.

@@ -270,6 +270,7 @@ export class Game {
   gameOver() {
     this.state = STATE.GAMEOVER;
     this.hud.hideBoss();
+    this.hud.hideTargetArrows();
     this.input.disable();
     this.audio.stopEngine();
     this.audio.stopMusic();
@@ -472,9 +473,10 @@ export class Game {
       if (!this.player.alive) return;
       const rr = this.player.radius + b.radius;
       if (b.mesh.position.distanceToSquared(pp) < rr * rr) {
+        const src = b.mesh.position.clone();
         b.kill();
-        this._damagePlayer(b.damage);
-        this.explosions.burst(b.mesh.position.clone(), { scale: 0.4, color: 0xff5566 });
+        this._damagePlayer(b.damage, src);
+        this.explosions.burst(src, { scale: 0.4, color: 0xff5566 });
       }
     });
   }
@@ -487,8 +489,9 @@ export class Game {
       const rr = this.player.radius + a.radius;
       if (pp.distanceToSquared(a.position) < rr * rr) {
         // Ram: destroy alien, damage player.
+        const src = a.position.clone();
         this._onAlienDestroyed(a);
-        this._damagePlayer(18);
+        this._damagePlayer(18, src);
       }
     }
   }
@@ -580,12 +583,13 @@ export class Game {
     }
   }
 
-  _damagePlayer(amount) {
+  _damagePlayer(amount, sourcePos) {
     if (!this.player.alive) return;
     const beforeHealth = this.player.health;
     this.player.damageBy(amount);
     this.hud.flashDamage();
     this._addShake(0.5, 0.3);
+    if (sourcePos) this.hud.showDamageFrom(this.camera, sourcePos);
     if (this.player.health < beforeHealth) this.audio.hit();
   }
 
@@ -708,6 +712,7 @@ export class Game {
     this.hud.setMissiles(this.player.missiles);
     if (this.aliens.bossAlive()) this.hud.setBossHealth(this.aliens.bossHealthPct());
     this.hud.drawRadar(this.player, this.aliens.aliens);
+    this.hud.updateTargetArrows(this.camera, this.aliens.aliens, this.player.position);
   }
 
   _onResize() {

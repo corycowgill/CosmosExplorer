@@ -181,6 +181,32 @@ html, body {
 .ch-tick.t { top: -14px; } .ch-tick.b { bottom: -14px; }
 .ch-tick.l { left: -14px; } .ch-tick.r { right: -14px; }
 
+/* Off-screen enemy direction arrows */
+#indicators { position: absolute; inset: 0; pointer-events: none; }
+.tgt-arrow {
+  position: absolute;
+  width: 0; height: 0;
+  border-left: 15px solid currentColor;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  filter: drop-shadow(0 0 5px currentColor);
+  color: #66ff88;
+  will-change: transform, left, top;
+}
+
+/* Incoming-damage direction arrow */
+#dmg-arrow {
+  position: absolute;
+  width: 0; height: 0;
+  border-left: 30px solid #ff2b4c;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  filter: drop-shadow(0 0 14px #ff2b4c);
+  opacity: 0;
+}
+#dmg-arrow.show { animation: dmgpulse 0.6s ease-out; }
+@keyframes dmgpulse { 0% { opacity: 0.95; } 100% { opacity: 0; } }
+
 /* Lock-on marker */
 #lock-marker {
   position: absolute;

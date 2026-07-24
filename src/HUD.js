@@ -32,6 +32,21 @@ export class HUD {
     this._toastTimer = 0;
     this._shownScore = 0;
     this._popupCount = 0;
+
+    // Pool of off-screen enemy direction arrows.
+    this._indicators = document.getElementById('indicators');
+    this._dmgArrow = document.getElementById('dmg-arrow');
+    this._arrows = [];
+    for (let i = 0; i < 14; i++) {
+      const el = document.createElement('div');
+      el.className = 'tgt-arrow';
+      el.style.display = 'none';
+      this._indicators.appendChild(el);
+      this._arrows.push(el);
+    }
+    this._tmpFwd = new THREE.Vector3();
+    this._tmpTo = new THREE.Vector3();
+    this._tmpProj = new THREE.Vector3();
   }
 
   show() { this.el.hud.classList.remove('hidden'); }
@@ -60,6 +75,67 @@ export class HUD {
       this.el.weapon.firstChild.textContent = 'PULSE LASER ';
       this.el.weapon.style.color = '';
     }
+  }
+
+  // Place edge arrows pointing at nearby enemies that are off-screen or behind.
+  updateTargetArrows(camera, aliens, playerPos) {
+    const W = window.innerWidth, H = window.innerHeight;
+    const camPos = camera.position;
+    const fwd = camera.getWorldDirection(this._tmpFwd);
+    const margin = 0.94;
+
+    // Nearest-first so the closest threats always get an arrow.
+    const cands = [];
+    for (const a of aliens) {
+      if (!a.alive) continue;
+      const d = a.position.distanceTo(playerPos);
+      if (d > 1100) continue;
+      cands.push({ a, d });
+    }
+    cands.sort((x, y) => x.d - y.d);
+
+    let idx = 0;
+    for (const { a, d } of cands) {
+      if (idx >= this._arrows.length) break;
+      const ndc = this._tmpProj.copy(a.position).project(camera);
+      const front = this._tmpTo.subVectors(a.position, camPos).dot(fwd) > 0;
+      let x = ndc.x, y = ndc.y;
+      if (!front) { x = -x; y = -y; } // mirror behind-camera targets to the near edge
+      if (front && Math.abs(x) <= margin && Math.abs(y) <= margin) continue; // on-screen already
+      const mag = Math.max(Math.abs(x), Math.abs(y)) || 1;
+      x = (x / mag) * margin; y = (y / mag) * margin;
+      const sx = (x * 0.5 + 0.5) * W, sy = (-y * 0.5 + 0.5) * H;
+      const ang = Math.atan2(-y, x) * 180 / Math.PI;
+      const boss = a.type === 'boss';
+      const el = this._arrows[idx++];
+      el.style.display = 'block';
+      el.style.left = sx + 'px';
+      el.style.top = sy + 'px';
+      el.style.transform = `translate(-50%,-50%) rotate(${ang}deg) scale(${boss ? 1.7 : 1})`;
+      el.style.color = boss ? '#ff5ec4' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : '#66ff88'));
+      el.style.opacity = boss ? '1' : String(Math.max(0.4, 1 - d / 1100));
+    }
+    for (; idx < this._arrows.length; idx++) this._arrows[idx].style.display = 'none';
+  }
+
+  hideTargetArrows() { for (const el of this._arrows) el.style.display = 'none'; }
+
+  // Flash a red arrow at the screen edge pointing to where damage came from.
+  showDamageFrom(camera, sourcePos) {
+    const W = window.innerWidth, H = window.innerHeight;
+    const ndc = this._tmpProj.copy(sourcePos).project(camera);
+    const front = this._tmpTo.subVectors(sourcePos, camera.position).dot(camera.getWorldDirection(this._tmpFwd)) > 0;
+    let x = ndc.x, y = ndc.y;
+    if (!front) { x = -x; y = -y; }
+    const mag = Math.max(Math.abs(x), Math.abs(y)) || 1;
+    x = (x / mag) * 0.96; y = (y / mag) * 0.96;
+    const el = this._dmgArrow;
+    el.style.left = ((x * 0.5 + 0.5) * W) + 'px';
+    el.style.top = ((-y * 0.5 + 0.5) * H) + 'px';
+    el.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(-y, x) * 180 / Math.PI}deg)`;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
   }
 
   showBoss() { this.el.bossBar.classList.remove('hidden'); this.setBossHealth(100); }
