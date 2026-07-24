@@ -31,33 +31,59 @@ const TYPES = {
 
 function buildScout(def) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.7, roughness: 0.35, emissive: def.color, emissiveIntensity: 0.35 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x223322, metalness: 0.6, roughness: 0.5 });
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.85, roughness: 0.28, envMapIntensity: 1.3, emissive: def.color, emissiveIntensity: 0.35 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1c2a1c, metalness: 0.8, roughness: 0.45, envMapIntensity: 1.1 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
   const body = new THREE.Mesh(new THREE.OctahedronGeometry(3, 0), mat);
   body.scale.set(1, 0.7, 1.5);
   g.add(body);
+  // A glowing sensor "eye" up front and a rear thruster.
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 12), glowMat);
+  eye.position.set(0, 0.1, -3.2);
+  g.add(eye);
+  const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 0.8, 12), glowMat);
+  thruster.rotation.x = Math.PI / 2;
+  thruster.position.set(0, 0, 4);
+  g.add(thruster);
   for (const s of [-1, 1]) {
     const wing = new THREE.Mesh(new THREE.ConeGeometry(0.8, 5, 4), dark);
     wing.rotation.z = Math.PI / 2 * s;
     wing.position.set(3.2 * s, 0, 1);
     g.add(wing);
+    // Glowing wing-edge strip.
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 0.12), glowMat);
+    edge.position.set(2 * s, 0, -0.6);
+    g.add(edge);
   }
   return g;
 }
 
 function buildFighter(def) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.75, roughness: 0.3, emissive: def.color, emissiveIntensity: 0.3 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x330022, metalness: 0.6, roughness: 0.5 });
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.85, roughness: 0.26, envMapIntensity: 1.4, emissive: def.color, emissiveIntensity: 0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a0020, metalness: 0.8, roughness: 0.4, envMapIntensity: 1.1 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
   const core = new THREE.Mesh(new THREE.IcosahedronGeometry(3.2, 0), mat);
   g.add(core);
+  // Glowing equatorial band + a bright core node.
+  const band = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.22, 8, 24), glowMat);
+  band.rotation.x = Math.PI / 2;
+  g.add(band);
+  const node = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 12), glowMat);
+  node.position.set(0, 0, -2.6);
+  g.add(node);
   const prongGeo = new THREE.BoxGeometry(0.8, 0.8, 7);
   for (const s of [-1, 1]) {
     const prong = new THREE.Mesh(prongGeo, dark);
     prong.position.set(3 * s, 0, -1.5);
     prong.rotation.y = -0.2 * s;
     g.add(prong);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 8), new THREE.MeshBasicMaterial({ color: def.glow }));
+    // Emissive strip along each prong + a glowing tip.
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 6.4), glowMat);
+    strip.position.set(3 * s, 0.42, -1.5);
+    strip.rotation.y = -0.2 * s;
+    g.add(strip);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), glowMat);
     tip.position.set(3.4 * s, 0, -4.5);
     g.add(tip);
   }
@@ -66,21 +92,40 @@ function buildFighter(def) {
 
 function buildCruiser(def) {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.7, roughness: 0.4, emissive: def.color, emissiveIntensity: 0.25 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x332200, metalness: 0.6, roughness: 0.5 });
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 1.6, 24), mat);
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.85, roughness: 0.32, envMapIntensity: 1.3, emissive: def.color, emissiveIntensity: 0.25 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a1c00, metalness: 0.8, roughness: 0.42, envMapIntensity: 1.1 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 1.6, 32), mat);
   g.add(disc);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(3.2, 20, 14, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xffee99, emissive: 0xaa6600, emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.2 }));
+  // Beveled rim ring + a glowing equatorial band.
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(7, 0.6, 10, 40), dark);
+  rim.rotation.x = Math.PI / 2;
+  g.add(rim);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(7.05, 0.16, 8, 40), glowMat);
+  band.rotation.x = Math.PI / 2;
+  g.add(band);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(3.2, 24, 16, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xffee99, emissive: 0xaa6600, emissiveIntensity: 0.6, metalness: 0.4, roughness: 0.15, envMapIntensity: 1.5 }));
   dome.position.y = 0.8;
   g.add(dome);
-  const under = new THREE.Mesh(new THREE.ConeGeometry(4, 3, 24), dark);
+  // Panel-line spokes on the top disc.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 4), dark);
+    spoke.position.set(Math.cos(a) * 4.5, 0.85, Math.sin(a) * 4.5);
+    spoke.rotation.y = -a;
+    g.add(spoke);
+  }
+  const under = new THREE.Mesh(new THREE.ConeGeometry(4, 3, 32), dark);
   under.rotation.x = Math.PI;
   under.position.y = -1.6;
   g.add(under);
+  const underGlow = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 12), glowMat);
+  underGlow.position.y = -2.8;
+  g.add(underGlow);
   // Glowing lights around the rim.
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    const light = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), new THREE.MeshBasicMaterial({ color: def.glow }));
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10), glowMat);
     light.position.set(Math.cos(a) * 6.6, 0, Math.sin(a) * 6.6);
     g.add(light);
   }
