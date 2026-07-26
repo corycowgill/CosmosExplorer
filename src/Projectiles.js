@@ -80,6 +80,7 @@ class Bolt {
     this.radius = opts.radius ?? 3.2;
     this.missile = !!opts.missile;
     this.homingTarget = opts.homingTarget || null;
+    this.homing = !!(opts.homing || opts.missile) && !!this.homingTarget;
     this.turnRate = opts.turnRate ?? 3.0;
 
     // Orient along velocity (all geometry is aligned to +Z / travel).
@@ -97,13 +98,14 @@ class Bolt {
       this.body.visible = true;
       this.core.visible = true;
       this.missileMesh.visible = false;
-      const color = opts.enemy ? ENEMY_COLOR : PLAYER_COLOR;
+      const color = opts.color ?? (opts.enemy ? ENEMY_COLOR : PLAYER_COLOR);
       this.bodyMat.color.setHex(color);
       this.glow.material.color.setHex(color);
-      const len = opts.enemy ? 0.85 : 1.15;
-      const girth = opts.enemy ? 0.9 : 1;
+      // Homing enemy orbs are chunkier and glow more so they read as a threat.
+      const len = this.homing ? 1.0 : (opts.enemy ? 0.85 : 1.15);
+      const girth = this.homing ? 1.5 : (opts.enemy ? 0.9 : 1);
       this.mesh.scale.set(girth, girth, len);
-      this.glow.scale.setScalar(opts.enemy ? 8 : 11);
+      this.glow.scale.setScalar(this.homing ? 12 : (opts.enemy ? 8 : 11));
     }
     this.mesh.visible = true;
     this.alive = true;
@@ -112,7 +114,7 @@ class Bolt {
   update(dt) {
     if (!this.alive) return;
     // Homing: bend velocity toward a live target, capped by turn rate.
-    if (this.missile && this.homingTarget && this.homingTarget.alive) {
+    if (this.homing && this.homingTarget && this.homingTarget.alive) {
       const desired = TMP1.subVectors(this.homingTarget.position, this.mesh.position).normalize().multiplyScalar(this.speed);
       // Lerp toward desired, then renormalize to keep constant speed.
       this.vel.lerp(desired, Math.min(1, this.turnRate * dt));

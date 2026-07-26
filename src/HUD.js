@@ -26,6 +26,7 @@ export class HUD {
       mute: document.getElementById('btn-mute'),
       bossBar: document.getElementById('boss-bar'),
       bossFill: document.getElementById('boss-fill'),
+      bossLabel: document.getElementById('boss-label'),
       overdrive: document.getElementById('hud-overdrive'),
       odBar: document.getElementById('hud-od-bar'),
       odLabel: document.getElementById('hud-od-label'),
@@ -110,13 +111,13 @@ export class HUD {
       x = (x / mag) * margin; y = (y / mag) * margin;
       const sx = (x * 0.5 + 0.5) * W, sy = (-y * 0.5 + 0.5) * H;
       const ang = Math.atan2(-y, x) * 180 / Math.PI;
-      const boss = a.type === 'boss';
+      const boss = a.type === 'boss' || a.type === 'warden';
       const el = this._arrows[idx++];
       el.style.display = 'block';
       el.style.left = sx + 'px';
       el.style.top = sy + 'px';
       el.style.transform = `translate(-50%,-50%) rotate(${ang}deg) scale(${boss ? 1.7 : 1})`;
-      el.style.color = boss ? '#ff5ec4' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : (a.type === 'sentinel' ? '#33ddff' : '#66ff88')));
+      el.style.color = a.type === 'boss' ? '#ff5ec4' : (a.type === 'warden' ? '#ff3355' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : (a.type === 'sentinel' ? '#33ddff' : '#66ff88'))));
       el.style.opacity = boss ? '1' : String(Math.max(0.4, 1 - d / 1100));
     }
     for (; idx < this._arrows.length; idx++) this._arrows[idx].style.display = 'none';
@@ -142,7 +143,11 @@ export class HUD {
     el.classList.add('show');
   }
 
-  showBoss() { this.el.bossBar.classList.remove('hidden'); this.setBossHealth(100); }
+  showBoss(name = 'MOTHERSHIP') {
+    if (this.el.bossLabel) this.el.bossLabel.textContent = `⚠ ${name} ⚠`;
+    this.el.bossBar.classList.remove('hidden');
+    this.setBossHealth(100);
+  }
   hideBoss() { this.el.bossBar.classList.add('hidden'); }
   setBossHealth(pct) { this.el.bossFill.style.width = clamp(pct, 0, 100) + '%'; }
 
@@ -249,9 +254,10 @@ export class HUD {
       if (mag > 1) { px /= mag; py /= mag; } // clamp to rim
       const x = cx + px * R, y = cy + py * R;
       const onRim = mag > 1;
-      ctx.fillStyle = a.type === 'boss' ? '#ff5ec4' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : (a.type === 'sentinel' ? '#33ddff' : '#66ff88')));
+      const boss = a.type === 'boss' || a.type === 'warden';
+      ctx.fillStyle = a.type === 'boss' ? '#ff5ec4' : (a.type === 'warden' ? '#ff3355' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : (a.type === 'sentinel' ? '#33ddff' : '#66ff88'))));
       ctx.beginPath();
-      ctx.arc(x, y, onRim ? 2 : (a.type === 'boss' ? 4 : 3.2), 0, Math.PI * 2);
+      ctx.arc(x, y, onRim ? 2 : (boss ? 4 : 3.2), 0, Math.PI * 2);
       ctx.fill();
     }
 

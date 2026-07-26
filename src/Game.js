@@ -313,8 +313,9 @@ export class Game {
     this.aliens.startWave(this.wave);
     this.hud.setWave(this.wave);
     if (this.aliens.bossWave) {
-      this.hud.toast('⚠  MOTHERSHIP INBOUND  ⚠', 2.4);
-      this.hud.showBoss();
+      const name = this.aliens.bossType === 'warden' ? 'WARDEN' : 'MOTHERSHIP';
+      this.hud.toast(`⚠  ${name} INBOUND  ⚠`, 2.4);
+      this.hud.showBoss(name);
       this.audio.explosion(true); // ominous boom
     } else if (this.wave > 1) {
       this.hud.toast(`WAVE ${this.wave}`, 1.5);
@@ -777,7 +778,7 @@ export class Game {
 
   _onAlienDestroyed(a) {
     const pos = a.position.clone();
-    const isBoss = a.type === 'boss';
+    const isBoss = a.type === 'boss' || a.type === 'warden';
     const big = a.type === 'cruiser' || isBoss;
     this.explosions.burst(pos, { scale: isBoss ? 3.2 : (big ? 1.8 : (a.type === 'fighter' ? 1.1 : 0.8)), big, color: a.def.glow });
     this.audio.explosion(big);

@@ -31,12 +31,19 @@ const TYPES = {
     score: 350, fireCooldown: 2.0, damage: 14, projSpeed: 145, behaviour: 'sentinel',
     shieldHP: 6,
   },
-  // Mothership boss (every 5th wave): huge, tanky, fires fans and summons scouts.
+  // Mothership boss: huge, tanky, fires aimed fans and summons scouts.
   boss: {
     color: 0xaa44ff, glow: 0xdd88ff, radius: 26, health: 120, speed: 16, turn: 0.5,
     score: 5000, fireCooldown: 1.6, damage: 16, projSpeed: 130, behaviour: 'boss',
   },
+  // Warden dreadnought: faster, aggressive — radial bursts, homing seekers, spiral fans.
+  warden: {
+    color: 0xff3355, glow: 0xff88aa, radius: 21, health: 100, speed: 21, turn: 0.6,
+    score: 6000, fireCooldown: 1.5, damage: 15, projSpeed: 125, behaviour: 'boss',
+  },
 };
+
+const BOSS_TYPES = new Set(['boss', 'warden']);
 
 function buildScout(def) {
   const g = new THREE.Group();
@@ -218,7 +225,47 @@ function buildSentinel(def) {
   return g;
 }
 
-const BUILDERS = { scout: buildScout, fighter: buildFighter, cruiser: buildCruiser, boss: buildBoss, sentinel: buildSentinel };
+function buildWarden(def) {
+  const g = new THREE.Group();
+  const hull = new THREE.MeshStandardMaterial({ color: 0x2a1016, metalness: 0.85, roughness: 0.4, emissive: 0x1a0408, emissiveIntensity: 0.4 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
+  const coreMat = new THREE.MeshStandardMaterial({ color: def.color, emissive: def.color, emissiveIntensity: 0.9, metalness: 0.5, roughness: 0.3 });
+
+  // Elongated spindle hull (a stretched diamond).
+  const spindle = new THREE.Mesh(new THREE.OctahedronGeometry(13, 1), hull);
+  spindle.scale.set(0.7, 0.7, 1.9);
+  g.add(spindle);
+  // Glowing reactor core + aura.
+  const core = new THREE.Mesh(new THREE.SphereGeometry(5, 22, 22), coreMat);
+  g.add(core);
+  const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: def.glow, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+  aura.scale.setScalar(42);
+  g.add(aura);
+  // Forward maw ring (its firing mouth).
+  const maw = new THREE.Mesh(new THREE.TorusGeometry(6.5, 0.7, 10, 28), glowMat);
+  maw.position.z = -15;
+  g.add(maw);
+  // Four orbiting weapon pods on struts (spin with the hull).
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 14), hull);
+    strut.position.set(Math.cos(a) * 9, Math.sin(a) * 9, 0);
+    g.add(strut);
+    const pod = new THREE.Mesh(new THREE.IcosahedronGeometry(2.4, 0), coreMat);
+    pod.position.set(Math.cos(a) * 16, Math.sin(a) * 16, 0);
+    g.add(pod);
+  }
+  // Rear thruster prongs.
+  for (const s of [-1, 1]) {
+    const prong = new THREE.Mesh(new THREE.ConeGeometry(1.4, 7, 8), glowMat);
+    prong.position.set(4 * s, 0, 15);
+    prong.rotation.x = -Math.PI / 2;
+    g.add(prong);
+  }
+  return g;
+}
+
+const BUILDERS = { scout: buildScout, fighter: buildFighter, cruiser: buildCruiser, boss: buildBoss, sentinel: buildSentinel, warden: buildWarden };
 
 class Alien {
   constructor(scene, type) {
@@ -376,6 +423,7 @@ class Alien {
     // Spin for character (sentinels don't spin — their shield must stay put).
     if (this.type === 'cruiser') this.mesh.rotation.y += dt * 1.2;
     else if (this.type === 'boss') this.mesh.rotation.y += dt * 0.5;
+    else if (this.type === 'warden') this.mesh.rotation.z += dt * 0.9;
     else if (this.type !== 'sentinel') this.mesh.rotation.z += dt * 0.6;
 
     // Sentinel shield: recharge after breaking, and drive its glow/flash.
@@ -436,7 +484,7 @@ export class AlienManager {
     this.projectiles = projectiles;
     this.audio = audio;
     this.aliens = [];
-    this.pools = { scout: [], fighter: [], cruiser: [], boss: [], sentinel: [] };
+    this.pools = { scout: [], fighter: [], cruiser: [], boss: [], sentinel: [], warden: [] };
     this.wave = 0;
     this.toSpawn = 0;
     this.spawnTimer = 0;
@@ -482,10 +530,11 @@ export class AlienManager {
     this.difficulty = wave;
     this.boss = null;
 
-    // Every 5th wave is a boss wave: one Mothership plus a small escort.
+    // Every 5th wave is a boss wave, alternating Mothership and Warden.
     this.bossWave = wave % 5 === 0;
     if (this.bossWave) {
-      this._queue = ['boss'];
+      this.bossType = ((wave / 5) % 2 === 1) ? 'boss' : 'warden'; // 5=boss,10=warden,15=boss…
+      this._queue = [this.bossType];
       const escorts = 2 + Math.floor(wave / 5);
       for (let i = 0; i < escorts; i++) this._queue.push('fighter');
       this.toSpawn = this._queue.length;
@@ -526,10 +575,10 @@ export class AlienManager {
     const dir = new THREE.Vector3(randRange(-1,1), randRange(-0.5,0.5), randRange(-1,1)).normalize();
     // Bias toward the player's forward hemisphere.
     if (playerForward) dir.addScaledVector(playerForward, 0.8).normalize();
-    const dist = type === 'boss' ? 300 : randRange(280, 420);
+    const dist = BOSS_TYPES.has(type) ? 300 : randRange(280, 420);
     const pos = playerPos.clone().addScaledVector(dir, dist);
     a.spawn(pos);
-    if (type === 'boss') {
+    if (BOSS_TYPES.has(type)) {
       // Scale boss HP with how deep the run is.
       a.maxHealth = a.def.health + Math.floor(this.wave / 5) * 90;
       a.health = a.maxHealth;
@@ -564,6 +613,48 @@ export class AlienManager {
     boss.bossPattern++;
   }
 
+  // Warden attack patterns: radial ring, homing seekers, sweeping spiral fan.
+  _wardenAttack(boss, player) {
+    const pp = player.position;
+    const up = new THREE.Vector3(0, 1, 0);
+    const dmg = boss.def.damage * this.diff.enemyDmg;
+    const spd = boss.def.projSpeed;
+    const p = boss.bossPattern % 3;
+    if (p === 0) {
+      // Radial ring burst — get moving.
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        const dir = new THREE.Vector3(Math.cos(a), Math.sin(a) * 0.35, Math.sin(a)).normalize();
+        const muzzle = boss.position.clone().addScaledVector(dir, boss.radius + 2);
+        this.projectiles.fire(muzzle, dir.clone().multiplyScalar(spd * 0.9), { enemy: true, damage: dmg, life: 4.5, radius: 2.5, color: 0xff5577 });
+      }
+    } else if (p === 1) {
+      // Homing seeker orbs — slow, curving, must be dodged or outrun.
+      const base = new THREE.Vector3().subVectors(pp, boss.position).normalize();
+      const side = new THREE.Vector3().crossVectors(base, up).normalize();
+      for (const off of [-1, 0, 1]) {
+        const dir = base.clone().addScaledVector(side, off * 0.4).normalize();
+        const muzzle = boss.position.clone().addScaledVector(dir, boss.radius + 2);
+        this.projectiles.fire(muzzle, dir.clone().multiplyScalar(spd * 0.55), {
+          enemy: true, homing: true, homingTarget: player, turnRate: 0.7,
+          damage: dmg, life: 5.5, radius: 3, color: 0xcc66ff,
+        });
+      }
+    } else {
+      // Sweeping aimed spiral fan.
+      const base = new THREE.Vector3().subVectors(pp, boss.position).normalize();
+      const q = new THREE.Quaternion();
+      for (let i = -3; i <= 3; i++) {
+        const ang = i * 0.14 + Math.sin(boss.wobble) * 0.5;
+        const dir = base.clone().applyQuaternion(q.setFromAxisAngle(up, ang));
+        const muzzle = boss.position.clone().addScaledVector(dir, boss.radius + 2);
+        this.projectiles.fire(muzzle, dir.clone().multiplyScalar(spd), { enemy: true, damage: dmg, life: 4, radius: 2.5, color: 0xff88aa });
+      }
+    }
+    if (this.audio) this.audio.enemyLaser();
+    boss.bossPattern++;
+  }
+
   update(dt, player) {
     const playerPos = player.position;
     const playerForward = player.forwardVector();
@@ -583,12 +674,13 @@ export class AlienManager {
       if (!a.alive) continue;
       a.update(dt, playerPos, this.difficulty, this.diff.enemySpeed);
 
-      // Boss uses timed attack patterns instead of the single-bolt fire.
-      if (a.type === 'boss') {
+      // Bosses use timed attack patterns instead of the single-bolt fire.
+      if (BOSS_TYPES.has(a.type)) {
         a.bossTimer -= dt;
-        if (a.bossTimer <= 0 && a.position.distanceTo(playerPos) < 600) {
-          this._bossAttack(a, player);
-          a.bossTimer = randRange(1.6, 2.4) * this.diff.fireRate;
+        if (a.bossTimer <= 0 && a.position.distanceTo(playerPos) < 620) {
+          if (a.type === 'warden') this._wardenAttack(a, player);
+          else this._bossAttack(a, player);
+          a.bossTimer = randRange(1.4, 2.2) * this.diff.fireRate;
         }
         continue;
       }

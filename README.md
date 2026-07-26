@@ -54,9 +54,11 @@ mobile, and with an Xbox controller** — no install, no build step.
   - **Cruiser** — slow, tanky flying saucer that hits hard and drops loot.
   - **Sentinel** — a shielded foe whose frontal energy shield blocks head-on fire;
     flank it, break the shield with sustained hits, or bypass it with a missile.
-- **Boss fights** — every 5th wave a giant **Mothership** warps in with a dedicated
-  health bar, orbiting at range while it unleashes bolt fans and summons escorts. Down
-  it for a huge score, a cascade of explosions and a pile of guaranteed loot.
+- **Boss fights** — every 5th wave a boss warps in with a dedicated health bar,
+  alternating between two very different foes: the **Mothership** (bolt fans + summons
+  scout escorts) and the **Warden** dreadnought (radial bullet-ring bursts, curving
+  **homing seeker** orbs, and sweeping spiral fans). Down one for a huge score, a cascade
+  of explosions and a pile of guaranteed loot.
 - **Two weapons** — a **pulse laser** that upgrades through three levels (adding spread
   barrels and a faster fire rate) and **homing missiles** that lock onto your target and
   detonate in an area blast.
