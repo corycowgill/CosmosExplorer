@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { makeGlowSprite } from './SolarSystem.js';
 import { randRange, clamp, damp } from './utils.js';
 
+const _v1 = new THREE.Vector3();
+
 const TYPES = {
   // Fast, weak, swarms the player.
   scout: {
@@ -21,6 +23,13 @@ const TYPES = {
   cruiser: {
     color: 0xffaa33, glow: 0xffdd88, radius: 9, health: 10, speed: 22, turn: 0.6,
     score: 500, fireCooldown: 2.2, damage: 22, projSpeed: 120, behaviour: 'advance',
+  },
+  // Shielded sentinel: a frontal energy shield blocks head-on fire — flank it,
+  // break the shield with sustained hits, or bypass it with a missile.
+  sentinel: {
+    color: 0x33ddff, glow: 0x99eeff, radius: 6, health: 7, speed: 19, turn: 0.9,
+    score: 350, fireCooldown: 2.0, damage: 14, projSpeed: 145, behaviour: 'sentinel',
+    shieldHP: 6,
   },
   // Mothership boss (every 5th wave): huge, tanky, fires fans and summons scouts.
   boss: {
@@ -173,7 +182,43 @@ function buildBoss(def) {
   return g;
 }
 
-const BUILDERS = { scout: buildScout, fighter: buildFighter, cruiser: buildCruiser, boss: buildBoss };
+function buildSentinel(def) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.85, roughness: 0.3, envMapIntensity: 1.3, emissive: def.color, emissiveIntensity: 0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x0e2630, metalness: 0.8, roughness: 0.4, envMapIntensity: 1.1 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
+
+  // Angular core (an octahedron drum) with a glowing eye and side vanes.
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(3.2, 0), mat);
+  core.scale.set(1, 1.1, 0.8);
+  g.add(core);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.8, 12, 12), glowMat);
+  eye.position.set(0, 0, -2.6);
+  g.add(eye);
+  for (const s of [-1, 1]) {
+    const vane = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.5, 2), dark);
+    vane.position.set(3 * s, 0, 1);
+    vane.rotation.z = 0.3 * s;
+    g.add(vane);
+  }
+
+  // Frontal energy shield — a translucent dome facing +Z (toward the player).
+  const shield = new THREE.Mesh(
+    new THREE.SphereGeometry(def.radius * 1.5, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    new THREE.MeshBasicMaterial({ color: def.glow, transparent: true, opacity: 0.4, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  shield.rotation.x = -Math.PI / 2;   // dome opening back, convex toward +Z
+  shield.position.z = -def.radius * 0.2;
+  shield.name = 'sentinelShield';
+  g.add(shield);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(def.radius * 1.42, 0.14, 8, 28), glowMat);
+  rim.name = 'sentinelShieldRim';
+  rim.position.z = -def.radius * 0.2;
+  g.add(rim);
+  return g;
+}
+
+const BUILDERS = { scout: buildScout, fighter: buildFighter, cruiser: buildCruiser, boss: buildBoss, sentinel: buildSentinel };
 
 class Alien {
   constructor(scene, type) {
@@ -211,6 +256,11 @@ class Alien {
     this.wobble = Math.random() * Math.PI * 2;
     this.strafeDir = Math.random() < 0.5 ? 1 : -1;
     this.hitFlash = 0;
+    this._facing = new THREE.Vector3(0, 0, 1);
+
+    // Sentinel shield references.
+    this.shieldMesh = this.mesh.getObjectByName('sentinelShield');
+    this.shieldRim = this.mesh.getObjectByName('sentinelShieldRim');
   }
 
   spawn(pos) {
@@ -225,6 +275,12 @@ class Alien {
     // Boss attack scheduling.
     this.bossTimer = 2.0;
     this.bossPattern = 0;
+    // Sentinel shield.
+    this.shieldActive = this.type === 'sentinel';
+    this.shieldHP = this.def.shieldHP || 0;
+    this.shieldRecharge = 0;
+    this.shieldFlash = 0;
+    if (this.shieldMesh) { this.shieldMesh.visible = this.shieldActive; this.shieldRim.visible = this.shieldActive; }
   }
 
   kill() { this.alive = false; this.group.visible = false; }
@@ -233,6 +289,22 @@ class Alien {
     this.health -= dmg;
     this.hitFlash = 0.12;
     return this.health <= 0;
+  }
+
+  // Shield-aware hit: sentinels block non-missile fire that arrives within their
+  // frontal shield arc, damaging the shield until it overloads and drops. Returns
+  // { dead, blocked }.
+  hitFrom(dmg, boltPos, isMissile) {
+    if (this.type === 'sentinel' && this.shieldActive && !isMissile) {
+      const toBolt = _v1.subVectors(boltPos, this.position).normalize();
+      if (toBolt.dot(this._facing) > 0.35) {          // came from the shielded front
+        this.shieldHP -= dmg;
+        this.shieldFlash = 0.16;
+        if (this.shieldHP <= 0) { this.shieldActive = false; this.shieldRecharge = 4; }
+        return { dead: false, blocked: true };
+      }
+    }
+    return { dead: this.hit(dmg), blocked: false };
   }
 
   get position() { return this.group.position; }
@@ -270,6 +342,15 @@ class Alien {
       else if (dist < ideal - 40) desired.addScaledVector(toPlayer, -1.0); // back off
       desired.y += Math.sin(this.wobble * 0.6) * 0.15;
       desired.normalize();
+    } else if (def.behaviour === 'sentinel') {
+      // Keep its shielded face toward the player while drifting to hold ~200 range.
+      if (dist > 240) desired.copy(toPlayer);
+      else if (dist < 150) desired.copy(toPlayer).multiplyScalar(-1);
+      else {
+        const up = new THREE.Vector3(0, 1, 0);
+        desired.copy(new THREE.Vector3().crossVectors(toPlayer, up)).multiplyScalar(this.strafeDir * 0.5);
+      }
+      desired.normalize();
     } else {
       // seek with wobble
       desired.x += Math.sin(this.wobble * 1.3) * 0.25;
@@ -283,15 +364,22 @@ class Alien {
     this.velocity.lerp(targetVel, damp(def.turn * 1.4, dt));
     this.group.position.addScaledVector(this.velocity, dt);
 
-    // Face travel direction.
-    if (this.velocity.lengthSq() > 0.01) {
+    // Facing: sentinels keep their shielded front toward the player; others face
+    // their travel direction.
+    if (this.type === 'sentinel') {
+      this.group.lookAt(playerPos);
+      this._facing.copy(toPlayer); // +Z of the group points at the player
+    } else if (this.velocity.lengthSq() > 0.01) {
       const look = new THREE.Vector3().copy(this.group.position).add(this.velocity);
       this.group.lookAt(look);
     }
-    // Spin for character.
+    // Spin for character (sentinels don't spin — their shield must stay put).
     if (this.type === 'cruiser') this.mesh.rotation.y += dt * 1.2;
     else if (this.type === 'boss') this.mesh.rotation.y += dt * 0.5;
-    else this.mesh.rotation.z += dt * 0.6;
+    else if (this.type !== 'sentinel') this.mesh.rotation.z += dt * 0.6;
+
+    // Sentinel shield: recharge after breaking, and drive its glow/flash.
+    if (this.type === 'sentinel') this._updateShield(dt);
 
     // Hit flash decay (restores to the brighter self-lit base, not below it).
     if (this.hitFlash > 0) {
@@ -307,6 +395,27 @@ class Alien {
 
     // Fire logic handled by manager (needs projectile pool); expose readiness.
     this.fireTimer -= dt;
+  }
+
+  _updateShield(dt) {
+    if (!this.shieldMesh) return;
+    if (this.shieldFlash > 0) this.shieldFlash -= dt;
+    if (!this.shieldActive) {
+      // Recharging: keep the dome hidden until it comes back online.
+      this.shieldRecharge -= dt;
+      this.shieldMesh.visible = false;
+      this.shieldRim.visible = false;
+      if (this.shieldRecharge <= 0) {
+        this.shieldActive = true;
+        this.shieldHP = this.def.shieldHP;
+      }
+      return;
+    }
+    this.shieldMesh.visible = true;
+    this.shieldRim.visible = true;
+    const flash = this.shieldFlash > 0 ? 0.5 : 0;
+    const hpFrac = this.shieldHP / this.def.shieldHP;
+    this.shieldMesh.material.opacity = 0.22 + hpFrac * 0.22 + flash;
   }
 
   wantsToFire(playerPos, difficulty, fireRateMul = 1) {
@@ -327,7 +436,7 @@ export class AlienManager {
     this.projectiles = projectiles;
     this.audio = audio;
     this.aliens = [];
-    this.pools = { scout: [], fighter: [], cruiser: [], boss: [] };
+    this.pools = { scout: [], fighter: [], cruiser: [], boss: [], sentinel: [] };
     this.wave = 0;
     this.toSpawn = 0;
     this.spawnTimer = 0;
@@ -390,10 +499,12 @@ export class AlienManager {
     const scouts = Math.max(1, Math.round((3 + wave * 2) * m));
     const fighters = Math.round((Math.max(0, wave - 1) + Math.floor(wave / 2)) * m);
     const cruisers = Math.floor(wave / 3);
+    const sentinels = wave >= 3 ? Math.round((1 + Math.floor((wave - 3) / 2)) * m) : 0;
     this._queue = [];
     for (let i = 0; i < scouts; i++) this._queue.push('scout');
     for (let i = 0; i < fighters; i++) this._queue.push('fighter');
     for (let i = 0; i < cruisers; i++) this._queue.push('cruiser');
+    for (let i = 0; i < sentinels; i++) this._queue.push('sentinel');
     // Shuffle.
     for (let i = this._queue.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));

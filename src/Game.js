@@ -572,9 +572,13 @@ export class Game {
         const wasMissile = b.missile;
         this.shotsHit++;
         b.kill();
-        const dead = hitAlien.hit(b.damage);
-        if (dead) this._onAlienDestroyed(hitAlien);
-        else {
+        const res = hitAlien.hitFrom(b.damage, hitPos, wasMissile);
+        if (res.dead) this._onAlienDestroyed(hitAlien);
+        else if (res.blocked) {
+          // Shield deflection — cyan spark, no damage to the hull.
+          this.explosions.burst(hitPos, { scale: 0.3, color: 0x99eeff });
+          this.audio.hit();
+        } else {
           this.explosions.burst(hitPos, { scale: 0.35, color: 0xffee88 });
           this.audio.hit();
         }

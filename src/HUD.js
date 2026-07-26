@@ -116,7 +116,7 @@ export class HUD {
       el.style.left = sx + 'px';
       el.style.top = sy + 'px';
       el.style.transform = `translate(-50%,-50%) rotate(${ang}deg) scale(${boss ? 1.7 : 1})`;
-      el.style.color = boss ? '#ff5ec4' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : '#66ff88'));
+      el.style.color = boss ? '#ff5ec4' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : (a.type === 'sentinel' ? '#33ddff' : '#66ff88')));
       el.style.opacity = boss ? '1' : String(Math.max(0.4, 1 - d / 1100));
     }
     for (; idx < this._arrows.length; idx++) this._arrows[idx].style.display = 'none';
@@ -249,9 +249,9 @@ export class HUD {
       if (mag > 1) { px /= mag; py /= mag; } // clamp to rim
       const x = cx + px * R, y = cy + py * R;
       const onRim = mag > 1;
-      ctx.fillStyle = a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : '#66ff88');
+      ctx.fillStyle = a.type === 'boss' ? '#ff5ec4' : (a.type === 'cruiser' ? '#ffaa33' : (a.type === 'fighter' ? '#ff66cc' : (a.type === 'sentinel' ? '#33ddff' : '#66ff88')));
       ctx.beginPath();
-      ctx.arc(x, y, onRim ? 2 : 3.2, 0, Math.PI * 2);
+      ctx.arc(x, y, onRim ? 2 : (a.type === 'boss' ? 4 : 3.2), 0, Math.PI * 2);
       ctx.fill();
     }
 

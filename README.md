@@ -44,10 +44,12 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Full 3D solar system** — a bloom-lit sun with a layered corona, six orbiting
   planets (banded gas giants, a ringed world, an ocean planet), a 5,000-star field and
   drifting nebula clouds, all generated procedurally in code (zero texture downloads).
-- **Three alien ship types**, each with distinct models and AI:
+- **Four alien ship types**, each with distinct models and AI:
   - **Scout** — fast, fragile, swarms you.
   - **Fighter** — circle-strafes and fires often.
   - **Cruiser** — slow, tanky flying saucer that hits hard and drops loot.
+  - **Sentinel** — a shielded foe whose frontal energy shield blocks head-on fire;
+    flank it, break the shield with sustained hits, or bypass it with a missile.
 - **Boss fights** — every 5th wave a giant **Mothership** warps in with a dedicated
   health bar, orbiting at range while it unleashes bolt fans and summons escorts. Down
   it for a huge score, a cascade of explosions and a pile of guaranteed loot.
