@@ -147,6 +147,7 @@
         </div>
       </div>
       <button id="btn-start" class="cta">LAUNCH</button>
+      <div><button id="btn-achievements" class="link-btn">🏅 ACHIEVEMENTS <span id="ach-count">0/0</span></button></div>
       <div class="controls-hint">
         <div class="ctrl-col">
           <h3>DESKTOP</h3>
@@ -193,6 +194,19 @@
       <button id="btn-restart" class="cta">RE-LAUNCH</button>
     </div>
   </div>
+
+  <!-- ============ ACHIEVEMENTS GALLERY ============ -->
+  <div id="achievements" class="overlay-screen hidden">
+    <div class="menu-inner">
+      <h1 class="title small" style="color:var(--amber);text-shadow:0 0 30px rgba(255,180,84,0.7)">ACHIEVEMENTS</h1>
+      <p class="tagline"><span id="ach-progress">0 / 0</span> unlocked</p>
+      <div id="ach-grid"></div>
+      <button id="btn-ach-close" class="cta">BACK</button>
+    </div>
+  </div>
+
+  <!-- Achievement unlock toast -->
+  <div id="ach-toast"></div>
 
   <!-- Loading indicator -->
   <div id="loader" class="overlay-screen">

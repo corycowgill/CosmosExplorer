@@ -79,6 +79,8 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Three difficulties** (Cadet / Pilot / Ace) that scale enemy lethality, pace, spawn
   counts and score reward — plus a **run-summary screen** with accuracy, earned **medals**
   (Gold, Boss Slayer, Sharpshooter, …) and a "new record" celebration.
+- **15 persistent achievements** that track across runs (First Blood, Warlord, Untouchable,
+  Deadeye, High Roller, …) with in-game unlock toasts and a browsable gallery on the menu.
 - **Quality of life** — pause (Esc / Start / on-screen button) and mute, with full
   cross-platform controls.
 - **Procedural audio** — an adaptive synth **soundtrack** (pad, bassline, arpeggio) that

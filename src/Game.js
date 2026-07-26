@@ -19,6 +19,7 @@ import { HUD } from './HUD.js';
 import { Input } from './Input.js';
 import { AudioFX } from './Audio.js';
 import { LensFlare } from './LensFlare.js';
+import { Achievements, ACHIEVEMENTS } from './Achievements.js';
 import { clamp, lerp, damp, isTouchDevice } from './utils.js';
 
 const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover', PAUSED: 'paused' };
@@ -208,6 +209,7 @@ export class Game {
     this.player = new Player(this.scene);
     this.aliens = new AlienManager(this.scene, this.projectiles, this.audio);
     this.hud = new HUD();
+    this.ach = new Achievements();
 
     this._camShakeT = 0;
     this._camShakeMag = 0;
@@ -231,6 +233,20 @@ export class Game {
       btn.classList.toggle('active', key === this.difficultyKey);
       btn.addEventListener('click', () => this._selectDifficulty(key));
     }
+
+    // Achievements gallery.
+    this._achQueue = [];
+    this._achToast = document.getElementById('ach-toast');
+    this._updateAchCount();
+    document.getElementById('btn-achievements').addEventListener('click', () => {
+      this._renderAchievements();
+      document.getElementById('menu').classList.add('hidden');
+      document.getElementById('achievements').classList.remove('hidden');
+    });
+    document.getElementById('btn-ach-close').addEventListener('click', () => {
+      document.getElementById('achievements').classList.add('hidden');
+      document.getElementById('menu').classList.remove('hidden');
+    });
 
     this.muted = false;
     this._streakCount = 0;
@@ -285,6 +301,7 @@ export class Game {
 
     this.wave = 0;
     this.betweenWaves = 1.2;
+    this._tookDamageThisWave = false;
     this.state = STATE.PLAYING;
     this.input.enable();
     this.hud.toast('WAVE 1', 1.5);
@@ -292,6 +309,7 @@ export class Game {
 
   _nextWave() {
     this.wave++;
+    this._tookDamageThisWave = false;
     this.aliens.startWave(this.wave);
     this.hud.setWave(this.wave);
     if (this.aliens.bossWave) {
@@ -323,6 +341,13 @@ export class Game {
       localStorage.setItem(bestKey(this.difficultyKey), this.hiScore);
     }
     const accuracy = this.shotsFired > 0 ? Math.round((this.shotsHit / this.shotsFired) * 100) : 0;
+
+    // Record run-end achievement stats.
+    this.ach.setMax('bestWave', this.wave);
+    this.ach.setMax('bestScore', Math.floor(this.score));
+    if (this.shotsFired >= 15) this.ach.setMax('bestAccuracy', accuracy);
+    if (this.difficultyKey === 'ace') this.ach.setMax('aceWave', this.wave);
+    this._checkAch();
 
     document.getElementById('go-score').textContent = Math.floor(this.score).toLocaleString();
     document.getElementById('go-hiscore').textContent = this.hiScore.toLocaleString();
@@ -387,6 +412,8 @@ export class Game {
 
   _activateOverdrive() {
     if (!this.player.activateOverdrive()) return;
+    this.ach.add('overdrives');
+    this._checkAch();
     this.hud.toast('⚡ OVERDRIVE ⚡', 1.6);
     this.audio.overdrive();
     this._addShake(1.3, 0.6);
@@ -427,6 +454,52 @@ export class Game {
     // Difficulty badge.
     if (this.difficultyKey === 'ace') medals.push('🔥 ACE PILOT');
     return medals;
+  }
+
+  // ---------------- achievements ----------------
+  _updateAchCount() {
+    const el = document.getElementById('ach-count');
+    if (el) el.textContent = `${this.ach.count()}/${this.ach.total()}`;
+  }
+
+  // Evaluate unlocks after recording stats; announce any that are newly earned.
+  _checkAch() {
+    const fresh = this.ach.check();
+    this._updateAchCount();
+    if (fresh.length) {
+      this._achQueue.push(...fresh);
+      if (!this._achShowing) this._showNextAch();
+    }
+  }
+
+  _showNextAch() {
+    const a = this._achQueue.shift();
+    if (!a) { this._achShowing = false; return; }
+    this._achShowing = true;
+    this._achToast.innerHTML =
+      `<div class="at-icon">${a.icon}</div><div><div class="at-title">ACHIEVEMENT UNLOCKED</div><div class="at-name">${a.name}</div></div>`;
+    this._achToast.classList.add('show');
+    this.audio.pickup();
+    setTimeout(() => {
+      this._achToast.classList.remove('show');
+      setTimeout(() => this._showNextAch(), 350);
+    }, 2600);
+  }
+
+  _renderAchievements() {
+    const grid = document.getElementById('ach-grid');
+    grid.innerHTML = '';
+    for (const a of ACHIEVEMENTS) {
+      const unlocked = this.ach.isUnlocked(a.id);
+      const card = document.createElement('div');
+      card.className = 'ach-card ' + (unlocked ? 'unlocked' : 'locked');
+      card.innerHTML =
+        `<div class="ach-icon">${a.icon}</div>` +
+        `<div><div class="ach-name">${unlocked ? a.name : '???'}</div>` +
+        `<div class="ach-desc">${a.desc}</div></div>`;
+      grid.appendChild(card);
+    }
+    document.getElementById('ach-progress').textContent = `${this.ach.count()} / ${this.ach.total()}`;
   }
 
   // Project a world position to screen pixels (returns null if behind camera).
@@ -483,6 +556,10 @@ export class Game {
       this.audio.waveClear();
       // Reward: small heal between waves.
       this.player.heal(10, 40);
+      // Achievements: wave depth + flawless-wave clear.
+      this.ach.setMax('bestWave', this.wave);
+      if (!this._tookDamageThisWave) this.ach.setFlag('noDamageWave');
+      this._checkAch();
     }
 
     // Update entities.
@@ -674,6 +751,8 @@ export class Game {
     const screen = this._toScreen(pos);
     if (screen) this.hud.popup(screen.x, screen.y, '+50', { color: '#c9a98a' });
     if (Math.random() < 0.16) this.pickups.maybeDrop(pos);
+    this.ach.add('asteroids');
+    this._checkAch();
     // Respawn it elsewhere so the field stays full.
     this.asteroids.respawn(a, this.player.position);
   }
@@ -707,6 +786,7 @@ export class Game {
 
     // Overdrive charge scales with the target's toughness.
     this.player.addOverdrive(isBoss ? 60 : (a.type === 'cruiser' ? 22 : (a.type === 'fighter' ? 11 : 7)));
+    this.ach.add('kills');
 
     // Combo + score.
     this.combo = clamp(this.combo + 0.5, 1, 8);
@@ -734,6 +814,10 @@ export class Game {
     const names = { 3: 'TRIPLE!', 5: 'RAMPAGE!', 8: 'UNSTOPPABLE!', 12: 'GODLIKE!' };
     if (names[this._streakCount]) this.hud.toast(names[this._streakCount], 1.2);
 
+    // Achievements: lifetime kills + best combo.
+    this.ach.setMax('maxCombo', this.combo);
+    this._checkAch();
+
     // Drops (cruisers are more generous).
     this.pickups.maybeDrop(pos, big);
   }
@@ -741,6 +825,8 @@ export class Game {
   // Boss defeated: a cascade of explosions, guaranteed loot, and a clean sweep.
   _onBossDefeated(pos) {
     this.bossesKilled++;
+    this.ach.add('bosses');
+    this._checkAch();
     this.hud.hideBoss();
     this.hud.toast('MOTHERSHIP DESTROYED!', 2.6);
     // Explosion cascade around the wreck.
@@ -771,12 +857,14 @@ export class Game {
 
   _damagePlayer(amount, sourcePos) {
     if (!this.player.alive) return;
-    const beforeHealth = this.player.health;
+    const before = this.player.health + this.player.shield;
     this.player.damageBy(amount);
+    const took = (this.player.health + this.player.shield) < before;
+    if (took) this._tookDamageThisWave = true; // breaks the flawless-wave achievement
     this.hud.flashDamage();
     this._addShake(0.5, 0.3);
-    if (sourcePos) this.hud.showDamageFrom(this.camera, sourcePos);
-    if (this.player.health < beforeHealth) this.audio.hit();
+    if (sourcePos && took) this.hud.showDamageFrom(this.camera, sourcePos);
+    if (took) this.audio.hit();
   }
 
   _applyPickup(kind) {
