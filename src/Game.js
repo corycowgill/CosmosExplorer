@@ -14,6 +14,7 @@ import { AlienManager } from './AlienManager.js';
 import { Projectiles } from './Projectiles.js';
 import { ExplosionManager } from './ExplosionManager.js';
 import { Pickups } from './Pickups.js';
+import { Asteroids } from './Asteroids.js';
 import { HUD } from './HUD.js';
 import { Input } from './Input.js';
 import { AudioFX } from './Audio.js';
@@ -203,6 +204,7 @@ export class Game {
     this.projectiles = new Projectiles(this.scene, 160);
     this.explosions = new ExplosionManager(this.scene, this.quality === 'high' ? 18 : 12);
     this.pickups = new Pickups(this.scene);
+    this.asteroids = new Asteroids(this.scene, this.quality);
     this.player = new Player(this.scene);
     this.aliens = new AlienManager(this.scene, this.projectiles, this.audio);
     this.hud = new HUD();
@@ -277,6 +279,7 @@ export class Game {
     this.player.reset();
     this.aliens.reset();
     this.pickups.reset();
+    this.asteroids.reset(this.player.position);
     // Snap camera behind the ship.
     this._placeCameraBehind(true);
 
@@ -489,6 +492,7 @@ export class Game {
     this.projectiles.update(dt);
     this.explosions.update(dt);
     this.solar.update(dt, this.camera.position);
+    this.asteroids.update(dt, this.player.position);
 
     // Firing — primary pulse laser.
     if (input.fire) {
@@ -522,6 +526,7 @@ export class Game {
     this._collidePlayerBolts();
     this._collideEnemyBolts(dt);
     this._collideShips(dt);
+    this._collideAsteroids(dt);
 
     // Pickups.
     const collected = this.pickups.update(dt, this.player.position);
@@ -626,6 +631,51 @@ export class Game {
         this._damagePlayer(18 * this.diffConfig.enemyDmg, src);
       }
     }
+  }
+
+  // Asteroids: shoot them apart for points/loot, and take a bump if you fly in.
+  _collideAsteroids(dt) {
+    const pp = this.player.position;
+    // Player bolts shatter asteroids (accuracy tracks enemies only, so no shotsHit).
+    this.projectiles.forEachLive(false, (b) => {
+      for (const a of this.asteroids.pool) {
+        if (!a.alive) continue;
+        const rr = a.radius + b.radius;
+        if (b.mesh.position.distanceToSquared(a.position) < rr * rr) {
+          const missile = b.missile;
+          b.kill();
+          this.explosions.burst(b.mesh.position.clone(), { scale: 0.3, color: 0xc9a98a });
+          if (a.hit(missile ? 99 : b.damage)) this._shatterAsteroid(a);
+          break;
+        }
+      }
+    });
+    // Ramming an asteroid hurts and destroys it (overdrive makes you immune).
+    if (this.player.alive) {
+      for (const a of this.asteroids.pool) {
+        if (!a.alive) continue;
+        const rr = this.player.radius + a.radius;
+        if (pp.distanceToSquared(a.position) < rr * rr) {
+          this._shatterAsteroid(a);
+          this._damagePlayer(12, a.position.clone());
+        }
+      }
+    }
+  }
+
+  _shatterAsteroid(a) {
+    const pos = a.position.clone();
+    const scale = a.radius / 10;
+    this.explosions.burst(pos, { scale: 0.9 * scale, color: 0xc98a5a });
+    this.audio.explosion(false);
+    this._addShake(0.3 * scale, 0.2);
+    this.score += 50;
+    this.hud.setScore(this.score);
+    const screen = this._toScreen(pos);
+    if (screen) this.hud.popup(screen.x, screen.y, '+50', { color: '#c9a98a' });
+    if (Math.random() < 0.16) this.pickups.maybeDrop(pos);
+    // Respawn it elsewhere so the field stays full.
+    this.asteroids.respawn(a, this.player.position);
   }
 
   // Soft-avoid planets & sun: push the player out and damage if grazing the sun.
