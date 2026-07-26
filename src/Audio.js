@@ -109,6 +109,13 @@ export class AudioFX {
     notes.forEach((f, i) => this._tone({ type: 'triangle', freq: f, dur: 0.3, gain: 0.18, delay: i * 0.1 }));
   }
 
+  overdrive() {
+    // Rising power-up sweep + a bright chord.
+    this._tone({ type: 'sawtooth', freq: 220, freqEnd: 1320, dur: 0.5, gain: 0.16 });
+    [523, 659, 784, 1046, 1319].forEach((f, i) => this._tone({ type: 'square', freq: f, dur: 0.5, gain: 0.09, delay: 0.12 + i * 0.03 }));
+    this._noise({ dur: 0.4, gain: 0.2, lpStart: 400, lpEnd: 4000 });
+  }
+
   gameOver() {
     const notes = [523, 392, 330, 262];
     notes.forEach((f, i) => this._tone({ type: 'sawtooth', freq: f, freqEnd: f * 0.98, dur: 0.5, gain: 0.16, delay: i * 0.18 }));

@@ -58,6 +58,13 @@ export class Player {
     this.missileCooldown = 0;
     this.missileRegen = 0;
 
+    // Overdrive — a kill-charged burst of rapid fire, double damage & invincibility.
+    this.overdrive = 0;          // 0..100 charge
+    this.overdriveMax = 100;
+    this.overdriveActive = false;
+    this.overdriveTimer = 0;
+    this.overdriveDuration = 6;
+
     this.radius = 6;
     this.bank = 0;
     this.enginePulse = 0;
@@ -184,6 +191,12 @@ export class Player {
     this.engineLight = new THREE.PointLight(0x55ffff, 1.5, 60, 2);
     this.engineLight.position.set(0, 0, 6);
     this.model.add(this.engineLight);
+
+    // Overdrive aura — a golden glow shell shown only while overdrive is active.
+    this.overdriveAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: 0xffd24a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.overdriveAura.scale.setScalar(20);
+    this.overdriveAura.visible = false;
+    this.group.add(this.overdriveAura);
   }
 
   _buildTrail() {
@@ -224,6 +237,10 @@ export class Player {
     this.missiles = 3;
     this.missileCooldown = 0;
     this.missileRegen = 0;
+    this.overdrive = 0;
+    this.overdriveActive = false;
+    this.overdriveTimer = 0;
+    if (this.overdriveAura) this.overdriveAura.visible = false;
     // Seed the trail at the ship so it doesn't streak from the origin.
     const p = this.group.position;
     for (let i = 0; i < this.trailCount; i++) {
@@ -324,6 +341,20 @@ export class Player {
       this.missileRegen = 0;
     }
 
+    // ---- Overdrive ----
+    if (this.overdriveActive) {
+      this.overdriveTimer -= dt;
+      if (this.overdriveTimer <= 0) { this.overdriveActive = false; this.overdriveAura.visible = false; }
+      else {
+        this.overdriveAura.visible = true;
+        const puls = 0.7 + Math.sin(this.enginePulse * 0.6) * 0.3;
+        this.overdriveAura.material.opacity = 0.5 * puls;
+        this.overdriveAura.scale.setScalar(18 + puls * 6);
+        // Full shields stay topped up while invincible.
+        this.shield = this.maxShield;
+      }
+    }
+
     // ---- Shield regen ----
     if (this.shieldRegenDelay > 0) this.shieldRegenDelay -= dt;
     else if (this.shield < this.maxShield) this.shield = clamp(this.shield + dt * 12, 0, this.maxShield);
@@ -350,11 +381,16 @@ export class Player {
   // Fire the primary weapon. Returns an array of {pos, dir} bolts, or null if unable.
   // Higher weapon levels add angled barrels (spread) and a tighter fire rate.
   tryFire() {
-    if (this.fireCooldown > 0 || this.overheated || !this.alive) return null;
-    // Level 3 fires noticeably faster.
-    this.fireCooldown = this.fireRate * (this.weaponLevel >= 3 ? 0.7 : 1);
-    this.heat = clamp(this.heat + 0.09, 0, 1);
-    if (this.heat >= 1) this.overheated = true;
+    // Overdrive ignores overheating and fires much faster.
+    if (this.fireCooldown > 0 || (this.overheated && !this.overdriveActive) || !this.alive) return null;
+    if (this.overdriveActive) {
+      this.fireCooldown = this.fireRate * 0.45;
+    } else {
+      // Level 3 fires noticeably faster.
+      this.fireCooldown = this.fireRate * (this.weaponLevel >= 3 ? 0.7 : 1);
+      this.heat = clamp(this.heat + 0.09, 0, 1);
+      if (this.heat >= 1) this.overheated = true;
+    }
     this.muzzleFlash = 0.05;
 
     const fwd = this.forwardVector();
@@ -401,8 +437,19 @@ export class Player {
 
   addMissiles(n) { this.missiles = clamp(this.missiles + n, 0, this.maxMissiles); }
 
+  // Overdrive charge accrues from kills (blocked while overdrive is running).
+  addOverdrive(n) { if (!this.overdriveActive) this.overdrive = clamp(this.overdrive + n, 0, this.overdriveMax); }
+  canOverdrive() { return this.alive && !this.overdriveActive && this.overdrive >= this.overdriveMax; }
+  activateOverdrive() {
+    if (!this.canOverdrive()) return false;
+    this.overdriveActive = true;
+    this.overdriveTimer = this.overdriveDuration;
+    this.overdrive = 0;
+    return true;
+  }
+
   damageBy(amount) {
-    if (!this.alive) return;
+    if (!this.alive || this.overdriveActive) return; // invincible during overdrive
     this.shieldRegenDelay = 3.5;
     if (this.shield > 0) {
       const absorbed = Math.min(this.shield, amount);

@@ -54,6 +54,9 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Two weapons** — a **pulse laser** that upgrades through three levels (adding spread
   barrels and a faster fire rate) and **homing missiles** that lock onto your target and
   detonate in an area blast.
+- **Overdrive** — a meter that charges from kills; unleash it (X / stick-click / on-screen
+  OD) for a screen-clearing shockwave and ~6s of rapid fire, double damage and
+  invincibility, with a golden aura and screen tint. Save it for a swarm or a boss.
 - **Juicy combat VFX** — additive particle explosions with debris, lingering embers,
   expanding shockwave rings, flash sprites, muzzle flashes, dynamic lights, camera shake,
   floating score popups, killstreak callouts (TRIPLE! / RAMPAGE! / GODLIKE!), a cinematic

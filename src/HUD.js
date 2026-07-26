@@ -26,6 +26,10 @@ export class HUD {
       mute: document.getElementById('btn-mute'),
       bossBar: document.getElementById('boss-bar'),
       bossFill: document.getElementById('boss-fill'),
+      overdrive: document.getElementById('hud-overdrive'),
+      odBar: document.getElementById('hud-od-bar'),
+      odLabel: document.getElementById('hud-od-label'),
+      odBtn: document.getElementById('btn-overdrive'),
     };
     this.radar = document.getElementById('radar');
     this.rctx = this.radar.getContext('2d');
@@ -144,6 +148,15 @@ export class HUD {
 
   setWeaponLevel(level) { this.el.wlevel.textContent = 'L' + level; }
   setMissiles(n) { this.el.missiles.textContent = n; }
+
+  setOverdrive(pct, ready, active) {
+    this.el.overdrive.style.width = clamp(pct, 0, 100) + '%';
+    const bar = this.el.odBar;
+    bar.classList.toggle('ready', ready && !active);
+    bar.classList.toggle('active', active);
+    this.el.odLabel.textContent = active ? 'OVERDRIVE ●' : (ready ? 'OVERDRIVE — READY (X)' : 'OVERDRIVE');
+    if (this.el.odBtn) this.el.odBtn.classList.toggle('ready', ready && !active);
+  }
   setMuted(muted) { this.el.mute.textContent = muted ? '🔇' : '🔊'; }
 
   // Spawn a floating popup at a screen position (score gains, streak names, etc.).

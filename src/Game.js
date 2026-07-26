@@ -253,6 +253,8 @@ export class Game {
     document.getElementById('pause').classList.add('hidden');
     this.hud.show();
     this.hud.hideBoss();
+    document.body.classList.remove('overdrive');
+    this._odWas = false;
 
     this.score = 0;
     this.kills = 0;
@@ -306,6 +308,7 @@ export class Game {
     this.state = STATE.GAMEOVER;
     this.hud.hideBoss();
     this.hud.hideTargetArrows();
+    document.body.classList.remove('overdrive');
     this.input.disable();
     this.audio.stopEngine();
     this.audio.stopMusic();
@@ -379,6 +382,25 @@ export class Game {
     this.hud.setHiScore(this.hiScore);
   }
 
+  _activateOverdrive() {
+    if (!this.player.activateOverdrive()) return;
+    this.hud.toast('⚡ OVERDRIVE ⚡', 1.6);
+    this.audio.overdrive();
+    this._addShake(1.3, 0.6);
+    document.body.classList.add('overdrive');
+    // Screen-clearing pulse that damages everything nearby.
+    const pos = this.player.position;
+    this.explosions.burst(pos.clone(), { scale: 2.6, big: true, color: 0xffd24a });
+    for (const a of this.aliens.aliens) {
+      if (!a.alive) continue;
+      if (a.position.distanceTo(pos) < 240 && a.type !== 'boss') {
+        if (a.hit(6)) this._onAlienDestroyed(a);
+      } else if (a.type === 'boss' && a.position.distanceTo(pos) < 240) {
+        a.hit(15); // bosses take a chunk but survive
+      }
+    }
+  }
+
   // Compute earned medals from the run's stats.
   _computeMedals(accuracy) {
     const medals = [];
@@ -416,12 +438,13 @@ export class Game {
     const dt = Math.min(0.05, this._clock.getDelta());
     this._elapsed = (this._elapsed || 0) + dt;
 
-    // One-shot buttons: pause & mute, handled in any state.
+    // One-shot buttons: pause, mute & overdrive, handled in any state.
     const edges = this.input.consumeEdges();
     if (edges.mute) this._toggleMute();
     if (edges.pause && (this.state === STATE.PLAYING || this.state === STATE.PAUSED)) {
       this._setPaused(this.state === STATE.PLAYING);
     }
+    if (edges.overdrive && this.state === STATE.PLAYING) this._activateOverdrive();
 
     if (this.state === STATE.PLAYING) {
       this._updatePlaying(dt);
@@ -471,9 +494,10 @@ export class Game {
     if (input.fire) {
       const shots = this.player.tryFire();
       if (shots) {
+        const dmg = this.player.overdriveActive ? 2 : 1;
         for (const s of shots) {
           const vel = s.dir.clone().multiplyScalar(520).add(this.player.velocity);
-          this.projectiles.fire(s.pos, vel, { enemy: false, damage: 1, life: 1.8, radius: 3.5 });
+          this.projectiles.fire(s.pos, vel, { enemy: false, damage: dmg, life: 1.8, radius: 3.5 });
         }
         this.shotsFired += shots.length;
         this.audio.laser();
@@ -513,6 +537,12 @@ export class Game {
       this._streakTimer -= dt;
       if (this._streakTimer <= 0) this._streakCount = 0;
     }
+    // Overdrive end: clear the screen tint the frame it wears off.
+    if (this._odWas && !this.player.overdriveActive) {
+      document.body.classList.remove('overdrive');
+      this.hud.toast('OVERDRIVE DEPLETED', 1.0);
+    }
+    this._odWas = this.player.overdriveActive;
 
     // Engine audio tracks speed.
     const spd = this.player.speed;
@@ -620,6 +650,9 @@ export class Game {
     this.audio.explosion(big);
     a.kill();
     this.kills++;
+
+    // Overdrive charge scales with the target's toughness.
+    this.player.addOverdrive(isBoss ? 60 : (a.type === 'cruiser' ? 22 : (a.type === 'fighter' ? 11 : 7)));
 
     // Combo + score.
     this.combo = clamp(this.combo + 0.5, 1, 8);
@@ -809,6 +842,11 @@ export class Game {
     this.hud.setSpeed(this.player.speed);
     this.hud.setHeat(this.player.heat * 100, this.player.overheated);
     this.hud.setMissiles(this.player.missiles);
+    this.hud.setOverdrive(
+      (this.player.overdrive / this.player.overdriveMax) * 100,
+      this.player.canOverdrive(),
+      this.player.overdriveActive
+    );
     if (this.aliens.bossAlive()) this.hud.setBossHealth(this.aliens.bossHealthPct());
     this.hud.drawRadar(this.player, this.aliens.aliens);
     this.hud.updateTargetArrows(this.camera, this.aliens.aliens, this.player.position);

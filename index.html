@@ -69,6 +69,8 @@
         <div class="hud-sub" id="hud-weapon">PULSE LASER <span id="hud-wlevel">L1</span></div>
         <div class="hud-sub">HEAT <span id="hud-heat">0%</span></div>
         <div class="hud-sub">MISSILES <span id="hud-missiles" class="glow-amber">3</span></div>
+        <div class="hud-label" style="margin-top:8px" id="hud-od-label">OVERDRIVE</div>
+        <div class="bar od-bar" id="hud-od-bar"><div id="hud-overdrive" class="bar-fill overdrive"></div></div>
       </div>
     </div>
 
@@ -112,11 +114,15 @@
       </div>
     </div>
     <div id="touch-buttons">
+      <button id="btn-overdrive" class="touch-btn overdrive">OD</button>
       <button id="btn-boost" class="touch-btn">BOOST</button>
       <button id="btn-missile" class="touch-btn missile">MSL</button>
       <button id="btn-fire" class="touch-btn fire">FIRE</button>
     </div>
   </div>
+
+  <!-- Overdrive screen tint -->
+  <div id="overdrive-fx"></div>
 
   <!-- ============ PAUSE SCREEN ============ -->
   <div id="pause" class="overlay-screen hidden">
@@ -148,6 +154,7 @@
           <p><b>W / S</b> — Climb / dive · <b>A / D</b> — Turn</p>
           <p><b>Click / Space</b> — Fire · <b>Shift</b> — Boost</p>
           <p><b>Right-click / C</b> — Homing missile</p>
+          <p><b>X</b> — Overdrive (when charged)</p>
           <p><b>Esc</b> — Pause · <b>M</b> — Mute</p>
         </div>
         <div class="ctrl-col">
@@ -161,7 +168,7 @@
           <h3>MOBILE</h3>
           <p><b>Left joystick</b> — Steer</p>
           <p><b>FIRE</b> — Blast · <b>MSL</b> — Missile</p>
-          <p><b>BOOST</b> — Afterburner</p>
+          <p><b>BOOST</b> — Afterburner · <b>OD</b> — Overdrive</p>
           <p>Grab glowing power-ups!</p>
         </div>
       </div>

@@ -22,7 +22,7 @@ export class Input {
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, active: false, down: false, right: false };
     this.touch = { steerX: 0, steerY: 0, fire: false, boost: false, missile: false };
-    this.edges = { pause: false, mute: false };
+    this.edges = { pause: false, mute: false, overdrive: false };
     this._padPrev = {};
     this.enabled = false;
 
@@ -47,6 +47,7 @@ export class Input {
     const e = { ...this.edges };
     this.edges.pause = false;
     this.edges.mute = false;
+    this.edges.overdrive = false;
     return e;
   }
 
@@ -57,6 +58,7 @@ export class Input {
       if (e.repeat) return;
       if (e.code === 'Escape' || e.code === 'KeyP') this.edges.pause = true;
       if (e.code === 'KeyM') this.edges.mute = true;
+      if (e.code === 'KeyX' || e.code === 'KeyV') this.edges.overdrive = true;
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -74,6 +76,7 @@ export class Input {
     };
     bind('btn-pause', () => { this.edges.pause = true; });
     bind('btn-mute', () => { this.edges.mute = true; });
+    bind('btn-overdrive', () => { this.edges.overdrive = true; });
   }
 
   _bindMouse() {
@@ -197,6 +200,10 @@ export class Input {
     const start = btn(9);
     if (start && !this._padPrev.start) this.edges.pause = true;
     this._padPrev.start = start;
+    // Overdrive on a stick-click (R3=11 / L3=10) — edge-detected.
+    const od = btn(10) || btn(11);
+    if (od && !this._padPrev.od) this.edges.overdrive = true;
+    this._padPrev.od = od;
   }
 
   // Called once per frame. Produces the merged control state.
