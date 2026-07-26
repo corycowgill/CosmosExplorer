@@ -170,6 +170,16 @@ export class Player {
     this.muzzles = [new THREE.Vector3(-3.5, -0.2, -1.5), new THREE.Vector3(3.5, -0.2, -1.5)];
     this.muzzleToggle = 0;
 
+    // Muzzle-flash sprites that pop when firing.
+    this.muzzleFlashes = [];
+    for (const m of this.muzzles) {
+      const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: 0xbffcff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      f.position.copy(m).add(new THREE.Vector3(0, 0, -1.2));
+      f.scale.setScalar(0.01);
+      this.model.add(f);
+      this.muzzleFlashes.push(f);
+    }
+
     // Engine light
     this.engineLight = new THREE.PointLight(0x55ffff, 1.5, 60, 2);
     this.engineLight.position.set(0, 0, 6);
@@ -295,6 +305,13 @@ export class Player {
     if (this.fireCooldown > 0) this.fireCooldown -= dt;
     if (this.missileCooldown > 0) this.missileCooldown -= dt;
     if (this.muzzleFlash > 0) this.muzzleFlash -= dt;
+    // Muzzle flash visual: bright pop that shrinks over the flash window.
+    const mf = clamp(this.muzzleFlash / 0.05, 0, 1);
+    for (const f of this.muzzleFlashes) {
+      f.material.opacity = mf * 0.9;
+      f.scale.setScalar(0.6 + mf * 3.2);
+      f.visible = mf > 0.01;
+    }
     // Cool down heat over time.
     this.heat = clamp(this.heat - dt * 0.32, 0, 1);
     if (this.overheated && this.heat < 0.35) this.overheated = false;

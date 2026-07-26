@@ -17,6 +17,7 @@ import { Pickups } from './Pickups.js';
 import { HUD } from './HUD.js';
 import { Input } from './Input.js';
 import { AudioFX } from './Audio.js';
+import { LensFlare } from './LensFlare.js';
 import { clamp, lerp, damp, isTouchDevice } from './utils.js';
 
 const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover', PAUSED: 'paused' };
@@ -80,6 +81,10 @@ export class Game {
     const strength = this.quality === 'high' ? 0.72 : 0.55;
     this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, 0.65, 0.85);
     this.composer.addPass(this.bloom);
+
+    // Cinematic sun lens flare (camera-attached screen-space sprites).
+    this.lensFlare = new LensFlare(this.scene, this.camera);
+    this._sunPos = new THREE.Vector3();
 
     // Cinematic grade: chromatic aberration toward the edges, a soft vignette,
     // gentle film grain and a saturation lift for that "spaceship viewport" look.
@@ -342,6 +347,10 @@ export class Game {
       this.explosions.update(dt);
       this.projectiles.update(dt);
     }
+
+    // Update the sun lens flare from the sun's current world position.
+    this.solar.sun.getWorldPosition(this._sunPos);
+    this.lensFlare.update(this._sunPos);
 
     this.gradePass.uniforms.uTime.value = this._elapsed;
     this.hud.update(dt);

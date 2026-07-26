@@ -54,10 +54,11 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Two weapons** — a **pulse laser** that upgrades through three levels (adding spread
   barrels and a faster fire rate) and **homing missiles** that lock onto your target and
   detonate in an area blast.
-- **Juicy combat VFX** — additive particle explosions with debris, expanding shockwave
-  rings, flash sprites, dynamic lights, camera shake, floating score popups, killstreak
-  callouts (TRIPLE! / RAMPAGE! / GODLIKE!) and an `UnrealBloom` post pipeline plus a
-  cinematic color-grade (vignette, chromatic aberration, film grain).
+- **Juicy combat VFX** — additive particle explosions with debris, lingering embers,
+  expanding shockwave rings, flash sprites, muzzle flashes, dynamic lights, camera shake,
+  floating score popups, killstreak callouts (TRIPLE! / RAMPAGE! / GODLIKE!), a cinematic
+  **sun lens flare** with an anamorphic streak, and an `UnrealBloom` post pipeline plus a
+  color-grade (vignette, chromatic aberration, film grain).
 - **A futuristic HUD** — animated score counter, wave & combo tracker, hull/shield bars,
   velocity + weapon heat, weapon level, missile count, a live **radar**, a target
   **lock-on** reticle, **off-screen enemy arrows** (with a distinct boss marker), an
