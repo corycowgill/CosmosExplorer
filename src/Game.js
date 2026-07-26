@@ -22,15 +22,30 @@ import { clamp, lerp, damp, isTouchDevice } from './utils.js';
 
 const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover', PAUSED: 'paused' };
 
+// Difficulty presets scale enemy lethality, pace and score reward.
+const DIFFICULTIES = {
+  cadet: { label: 'CADET', enemyDmg: 0.6,  enemySpeed: 0.85, fireRate: 1.35, spawnMul: 0.75, scoreMul: 0.8 },
+  pilot: { label: 'PILOT', enemyDmg: 1.0,  enemySpeed: 1.0,  fireRate: 1.0,  spawnMul: 1.0,  scoreMul: 1.0 },
+  ace:   { label: 'ACE',   enemyDmg: 1.45, enemySpeed: 1.2,  fireRate: 0.72, spawnMul: 1.3,  scoreMul: 1.5 },
+};
+const bestKey = (diff) => `cosmos_hiscore_${diff}`;
+
 export class Game {
   constructor() {
     this.state = STATE.MENU;
     this.score = 0;
-    this.hiScore = Number(localStorage.getItem('cosmos_hiscore') || 0);
+    // Difficulty + per-difficulty best score.
+    this.difficultyKey = localStorage.getItem('cosmos_diff') || 'pilot';
+    if (!DIFFICULTIES[this.difficultyKey]) this.difficultyKey = 'pilot';
+    this.diffConfig = DIFFICULTIES[this.difficultyKey];
+    this.hiScore = Number(localStorage.getItem(bestKey(this.difficultyKey)) || 0);
     this.kills = 0;
     this.combo = 1;
     this.comboTimer = 0;
     this.betweenWaves = 0;
+    this.shotsFired = 0;
+    this.shotsHit = 0;
+    this.bossesKilled = 0;
 
     this._initRenderer();
     this._initScene();
@@ -207,6 +222,14 @@ export class Game {
     const resume = document.getElementById('btn-resume');
     if (resume) resume.addEventListener('click', () => this._setPaused(false));
 
+    // Difficulty selector.
+    this._diffBtns = Array.from(document.querySelectorAll('.diff-btn'));
+    for (const btn of this._diffBtns) {
+      const key = btn.dataset.diff;
+      btn.classList.toggle('active', key === this.difficultyKey);
+      btn.addEventListener('click', () => this._selectDifficulty(key));
+    }
+
     this.muted = false;
     this._streakCount = 0;
     this._streakTimer = 0;
@@ -237,6 +260,13 @@ export class Game {
     this.comboTimer = 0;
     this._streakCount = 0;
     this._streakTimer = 0;
+    this.shotsFired = 0;
+    this.shotsHit = 0;
+    this.bossesKilled = 0;
+    // Apply the chosen difficulty and show its best score.
+    this.hiScore = Number(localStorage.getItem(bestKey(this.difficultyKey)) || 0);
+    this.aliens.setDifficulty(this.diffConfig);
+    this.hud.setHiScore(this.hiScore);
     this.hud.setScore(0);
     this.hud.setCombo(1);
     this.hud.setWeaponLevel(1);
@@ -280,14 +310,35 @@ export class Game {
     this.audio.stopEngine();
     this.audio.stopMusic();
     this.audio.gameOver();
-    if (this.score > this.hiScore) {
+
+    const isRecord = this.score > this.hiScore;
+    if (isRecord) {
       this.hiScore = Math.floor(this.score);
-      localStorage.setItem('cosmos_hiscore', this.hiScore);
+      localStorage.setItem(bestKey(this.difficultyKey), this.hiScore);
     }
+    const accuracy = this.shotsFired > 0 ? Math.round((this.shotsHit / this.shotsFired) * 100) : 0;
+
     document.getElementById('go-score').textContent = Math.floor(this.score).toLocaleString();
     document.getElementById('go-hiscore').textContent = this.hiScore.toLocaleString();
     document.getElementById('go-wave').textContent = this.wave;
     document.getElementById('go-kills').textContent = this.kills;
+    document.getElementById('go-accuracy').textContent = accuracy + '%';
+    document.getElementById('go-diff').textContent = this.diffConfig.label;
+    document.getElementById('go-record').classList.toggle('hidden', !isRecord);
+
+    // Medals.
+    const medalsEl = document.getElementById('go-medals');
+    medalsEl.innerHTML = '';
+    const medals = this._computeMedals(accuracy);
+    medals.forEach((m, i) => {
+      const el = document.createElement('div');
+      el.className = 'medal';
+      el.style.animationDelay = (i * 0.08) + 's';
+      el.textContent = m;
+      medalsEl.appendChild(el);
+    });
+
+    if (isRecord) this.audio.waveClear();
     setTimeout(() => {
       this.hud.hide();
       document.getElementById('gameover').classList.remove('hidden');
@@ -315,6 +366,42 @@ export class Game {
     this.audio.enabled = !this.muted;
     if (this.audio.master) this.audio.master.gain.value = this.muted ? 0 : 0.55;
     this.hud.setMuted(this.muted);
+  }
+
+  _selectDifficulty(key) {
+    if (!DIFFICULTIES[key]) return;
+    this.difficultyKey = key;
+    this.diffConfig = DIFFICULTIES[key];
+    localStorage.setItem('cosmos_diff', key);
+    for (const btn of this._diffBtns) btn.classList.toggle('active', btn.dataset.diff === key);
+    // Show the best for the selected difficulty.
+    this.hiScore = Number(localStorage.getItem(bestKey(key)) || 0);
+    this.hud.setHiScore(this.hiScore);
+  }
+
+  // Compute earned medals from the run's stats.
+  _computeMedals(accuracy) {
+    const medals = [];
+    const s = this.score, w = this.wave;
+    // Score rank (highest that applies).
+    if (s >= 100000) medals.push('💎 DIAMOND ACE');
+    else if (s >= 50000) medals.push('🥇 GOLD');
+    else if (s >= 20000) medals.push('🥈 SILVER');
+    else if (s >= 5000) medals.push('🥉 BRONZE');
+    // Boss medals.
+    if (this.bossesKilled >= 3) medals.push('👑 WARLORD');
+    else if (this.bossesKilled >= 1) medals.push('👑 BOSS SLAYER');
+    // Wave depth.
+    if (w >= 15) medals.push('🌌 DEEP SPACE');
+    else if (w >= 10) medals.push('🚀 VETERAN');
+    // Accuracy (needs a meaningful sample).
+    if (this.shotsFired >= 25) {
+      if (accuracy >= 80) medals.push('🎯 DEADEYE');
+      else if (accuracy >= 55) medals.push('🎯 SHARPSHOOTER');
+    }
+    // Difficulty badge.
+    if (this.difficultyKey === 'ace') medals.push('🔥 ACE PILOT');
+    return medals;
   }
 
   // Project a world position to screen pixels (returns null if behind camera).
@@ -388,6 +475,7 @@ export class Game {
           const vel = s.dir.clone().multiplyScalar(520).add(this.player.velocity);
           this.projectiles.fire(s.pos, vel, { enemy: false, damage: 1, life: 1.8, radius: 3.5 });
         }
+        this.shotsFired += shots.length;
         this.audio.laser();
       }
     }
@@ -452,6 +540,7 @@ export class Game {
       if (hitAlien) {
         const hitPos = b.mesh.position.clone();
         const wasMissile = b.missile;
+        this.shotsHit++;
         b.kill();
         const dead = hitAlien.hit(b.damage);
         if (dead) this._onAlienDestroyed(hitAlien);
@@ -500,7 +589,7 @@ export class Game {
         // Ram: destroy alien, damage player.
         const src = a.position.clone();
         this._onAlienDestroyed(a);
-        this._damagePlayer(18, src);
+        this._damagePlayer(18 * this.diffConfig.enemyDmg, src);
       }
     }
   }
@@ -535,7 +624,7 @@ export class Game {
     // Combo + score.
     this.combo = clamp(this.combo + 0.5, 1, 8);
     this.comboTimer = 3.2;
-    const gained = Math.round(a.def.score * this.combo);
+    const gained = Math.round(a.def.score * this.combo * this.diffConfig.scoreMul);
     this.score += gained;
     this.hud.setScore(this.score);
     this.hud.setCombo(this.combo);
@@ -564,6 +653,7 @@ export class Game {
 
   // Boss defeated: a cascade of explosions, guaranteed loot, and a clean sweep.
   _onBossDefeated(pos) {
+    this.bossesKilled++;
     this.hud.hideBoss();
     this.hud.toast('MOTHERSHIP DESTROYED!', 2.6);
     // Explosion cascade around the wreck.

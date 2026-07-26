@@ -132,6 +132,14 @@
     <div class="menu-inner">
       <h1 class="title">COSMOS<span>EXPLORER</span></h1>
       <p class="tagline">Scramble your rocket. Sweep the solar system. Blast the invaders.</p>
+      <div class="difficulty-select">
+        <span class="hud-label">DIFFICULTY</span>
+        <div class="diff-buttons">
+          <button class="diff-btn" data-diff="cadet">CADET</button>
+          <button class="diff-btn active" data-diff="pilot">PILOT</button>
+          <button class="diff-btn" data-diff="ace">ACE</button>
+        </div>
+      </div>
       <button id="btn-start" class="cta">LAUNCH</button>
       <div class="controls-hint">
         <div class="ctrl-col">
@@ -164,13 +172,17 @@
   <!-- ============ GAME OVER SCREEN ============ -->
   <div id="gameover" class="overlay-screen hidden">
     <div class="menu-inner">
+      <div id="go-record" class="hidden">★ NEW RECORD ★</div>
       <h1 class="title small">SHIP LOST</h1>
       <div class="score-readout">
         <div><span class="hud-label">FINAL SCORE</span><div id="go-score" class="hud-value glow-cyan">0</div></div>
         <div><span class="hud-label">BEST</span><div id="go-hiscore" class="hud-value glow-magenta">0</div></div>
         <div><span class="hud-label">WAVE REACHED</span><div id="go-wave" class="hud-value">1</div></div>
         <div><span class="hud-label">KILLS</span><div id="go-kills" class="hud-value">0</div></div>
+        <div><span class="hud-label">ACCURACY</span><div id="go-accuracy" class="hud-value">0%</div></div>
+        <div><span class="hud-label">DIFFICULTY</span><div id="go-diff" class="hud-value">PILOT</div></div>
       </div>
+      <div id="go-medals"></div>
       <button id="btn-restart" class="cta">RE-LAUNCH</button>
     </div>
   </div>

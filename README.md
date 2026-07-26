@@ -65,7 +65,11 @@ mobile, and with an Xbox controller** — no install, no build step.
   **incoming-damage direction** indicator, toast messages and a damage vignette.
 - **Wave progression & scoring** — escalating enemy waves, a combo multiplier and
   killstreaks that reward fast chained kills, collectible power-ups (hull repair, shield
-  cells, weapon upgrades, missile resupply, score bonuses) and a persistent high score.
+  cells, weapon upgrades, missile resupply, score bonuses) and **per-difficulty** high
+  scores.
+- **Three difficulties** (Cadet / Pilot / Ace) that scale enemy lethality, pace, spawn
+  counts and score reward — plus a **run-summary screen** with accuracy, earned **medals**
+  (Gold, Boss Slayer, Sharpshooter, …) and a "new record" celebration.
 - **Quality of life** — pause (Esc / Start / on-screen button) and mute, with full
   cross-platform controls.
 - **Procedural audio** — an adaptive synth **soundtrack** (pad, bassline, arpeggio) that

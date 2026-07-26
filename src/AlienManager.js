@@ -238,7 +238,7 @@ class Alien {
   get position() { return this.group.position; }
   get radius() { return this.def.radius; }
 
-  update(dt, playerPos, difficulty) {
+  update(dt, playerPos, difficulty, speedMul = 1) {
     if (!this.alive) return;
     this.wobble += dt * 2;
     const def = this.def;
@@ -278,7 +278,7 @@ class Alien {
     }
 
     // Steer velocity toward desired.
-    const speed = def.speed * (0.9 + difficulty * 0.06);
+    const speed = def.speed * (0.9 + difficulty * 0.06) * speedMul;
     const targetVel = desired.multiplyScalar(speed);
     this.velocity.lerp(targetVel, damp(def.turn * 1.4, dt));
     this.group.position.addScaledVector(this.velocity, dt);
@@ -309,12 +309,12 @@ class Alien {
     this.fireTimer -= dt;
   }
 
-  wantsToFire(playerPos, difficulty) {
+  wantsToFire(playerPos, difficulty, fireRateMul = 1) {
     if (!this.alive) return false;
     const dist = this.position.distanceTo(playerPos);
     if (dist > 340) return false;
     if (this.fireTimer <= 0) {
-      this.fireTimer = this.def.fireCooldown * (0.7 + Math.random() * 0.6) / (1 + difficulty * 0.05);
+      this.fireTimer = this.def.fireCooldown * (0.7 + Math.random() * 0.6) / (1 + difficulty * 0.05) * fireRateMul;
       return true;
     }
     return false;
@@ -335,7 +335,11 @@ export class AlienManager {
     this.bossWave = false;
     this.boss = null;
     this.onKill = null; // callback(alien, position)
+    // Difficulty multipliers (set by Game per selected difficulty).
+    this.diff = { enemyDmg: 1, enemySpeed: 1, fireRate: 1, spawnMul: 1, scoreMul: 1 };
   }
+
+  setDifficulty(cfg) { this.diff = cfg; }
 
   _acquire(type) {
     let a = this.pools[type].find((x) => !x.alive);
@@ -381,9 +385,10 @@ export class AlienManager {
       return;
     }
 
-    // Composition scales with wave.
-    const scouts = 3 + wave * 2;
-    const fighters = Math.max(0, wave - 1) + Math.floor(wave / 2);
+    // Composition scales with wave and the difficulty spawn multiplier.
+    const m = this.diff.spawnMul;
+    const scouts = Math.max(1, Math.round((3 + wave * 2) * m));
+    const fighters = Math.round((Math.max(0, wave - 1) + Math.floor(wave / 2)) * m);
     const cruisers = Math.floor(wave / 3);
     this._queue = [];
     for (let i = 0; i < scouts; i++) this._queue.push('scout');
@@ -433,7 +438,7 @@ export class AlienManager {
         const dir = base.clone().applyQuaternion(q.setFromAxisAngle(up, i * 0.11));
         const vel = dir.clone().multiplyScalar(boss.def.projSpeed);
         const muzzle = boss.position.clone().addScaledVector(dir, boss.radius + 2);
-        this.projectiles.fire(muzzle, vel, { enemy: true, damage: boss.def.damage, life: 4, radius: 3 });
+        this.projectiles.fire(muzzle, vel, { enemy: true, damage: boss.def.damage * this.diff.enemyDmg, life: 4, radius: 3 });
       }
       if (this.audio) this.audio.enemyLaser();
     } else {
@@ -465,20 +470,20 @@ export class AlienManager {
     const tmpVel = new THREE.Vector3();
     for (const a of this.aliens) {
       if (!a.alive) continue;
-      a.update(dt, playerPos, this.difficulty);
+      a.update(dt, playerPos, this.difficulty, this.diff.enemySpeed);
 
       // Boss uses timed attack patterns instead of the single-bolt fire.
       if (a.type === 'boss') {
         a.bossTimer -= dt;
         if (a.bossTimer <= 0 && a.position.distanceTo(playerPos) < 600) {
           this._bossAttack(a, player);
-          a.bossTimer = randRange(1.6, 2.4);
+          a.bossTimer = randRange(1.6, 2.4) * this.diff.fireRate;
         }
         continue;
       }
 
       // Firing.
-      if (a.wantsToFire(playerPos, this.difficulty)) {
+      if (a.wantsToFire(playerPos, this.difficulty, this.diff.fireRate)) {
         // Aim with a little lead toward the player's velocity.
         const aim = new THREE.Vector3().subVectors(playerPos, a.position);
         const dist = aim.length();
@@ -488,7 +493,7 @@ export class AlienManager {
         const dir = target.sub(a.position).normalize();
         const vel = dir.multiplyScalar(a.def.projSpeed);
         const muzzle = a.position.clone().addScaledVector(dir, a.radius + 1);
-        this.projectiles.fire(muzzle, vel, { enemy: true, damage: a.def.damage, life: 3.5, radius: 2.5 });
+        this.projectiles.fire(muzzle, vel, { enemy: true, damage: a.def.damage * this.diff.enemyDmg, life: 3.5, radius: 2.5 });
         if (this.audio) this.audio.enemyLaser();
       }
 
