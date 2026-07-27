@@ -147,7 +147,10 @@
         </div>
       </div>
       <button id="btn-start" class="cta">LAUNCH</button>
-      <div><button id="btn-achievements" class="link-btn">🏅 ACHIEVEMENTS <span id="ach-count">0/0</span></button></div>
+      <div class="menu-links">
+        <button id="btn-achievements" class="link-btn">🏅 ACHIEVEMENTS <span id="ach-count">0/0</span></button>
+        <button id="btn-settings" class="link-btn">⚙ SETTINGS</button>
+      </div>
       <div class="controls-hint">
         <div class="ctrl-col">
           <h3>DESKTOP</h3>
@@ -207,6 +210,28 @@
 
   <!-- Achievement unlock toast -->
   <div id="ach-toast"></div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div id="settings" class="overlay-screen hidden">
+    <div class="menu-inner">
+      <h1 class="title small" style="color:var(--cyan);text-shadow:0 0 30px rgba(56,246,255,0.7)">SETTINGS</h1>
+      <div class="settings-list">
+        <div class="setting-row">
+          <label>Invert Pitch (Y-axis)</label>
+          <button id="set-invert" class="toggle-btn">OFF</button>
+        </div>
+        <div class="setting-row">
+          <label>Steering Sensitivity <b id="set-sens-val">1.0×</b></label>
+          <input id="set-sens" type="range" min="0.5" max="1.6" step="0.05" value="1">
+        </div>
+        <div class="setting-row">
+          <label>Master Volume <b id="set-vol-val">55%</b></label>
+          <input id="set-vol" type="range" min="0" max="1" step="0.05" value="0.55">
+        </div>
+      </div>
+      <button id="btn-set-close" class="cta">BACK</button>
+    </div>
+  </div>
 
   <!-- Loading indicator -->
   <div id="loader" class="overlay-screen">

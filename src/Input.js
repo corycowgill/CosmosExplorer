@@ -25,6 +25,7 @@ export class Input {
     this.edges = { pause: false, mute: false, overdrive: false };
     this._padPrev = {};
     this.enabled = false;
+    this.invertY = false; // settings: invert pitch axis
 
     this._bindKeyboard();
     this._bindMouse();
@@ -267,6 +268,7 @@ export class Input {
     // ---- Gamepad ----
     this._pollGamepad(s);
 
+    if (this.invertY) s.pitch = -s.pitch;
     s.yaw = clamp(s.yaw, -1, 1);
     s.pitch = clamp(s.pitch, -1, 1);
     s.roll = clamp(s.roll, -1, 1);

@@ -83,8 +83,9 @@ mobile, and with an Xbox controller** — no install, no build step.
   (Gold, Boss Slayer, Sharpshooter, …) and a "new record" celebration.
 - **15 persistent achievements** that track across runs (First Blood, Warlord, Untouchable,
   Deadeye, High Roller, …) with in-game unlock toasts and a browsable gallery on the menu.
-- **Quality of life** — pause (Esc / Start / on-screen button) and mute, with full
-  cross-platform controls.
+- **Quality of life** — pause (Esc / Start / on-screen button), mute, and a **settings
+  panel** (invert pitch/Y-axis, steering sensitivity, master volume — all persisted),
+  with full cross-platform controls.
 - **Procedural audio** — an adaptive synth **soundtrack** (pad, bassline, arpeggio) that
   turns dark and driving during boss fights and ducks when paused, plus engine drone,
   lasers, explosions and UI stings — all synthesized with the Web Audio API (no files).

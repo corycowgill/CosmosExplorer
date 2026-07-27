@@ -34,6 +34,7 @@ export class Player {
     this.yawRate = 2.2;
     this.pitchRate = 2.0;
     this.rollRate = 3.0;
+    this.turnScale = 1; // settings: steering sensitivity multiplier
 
     // Combat / survival
     this.maxHealth = 100;
@@ -268,8 +269,8 @@ export class Player {
     // ---- Rotation from input ----
     // Yaw turns the heading directly (no auto-bank on the heading — that only
     // muddied the turn). Banking is purely cosmetic, applied to the model below.
-    const yaw = -input.yaw * this.yawRate * dt;
-    const pitch = input.pitch * this.pitchRate * dt;
+    const yaw = -input.yaw * this.yawRate * this.turnScale * dt;
+    const pitch = input.pitch * this.pitchRate * this.turnScale * dt;
     const roll = -input.roll * this.rollRate * dt;
 
     this.group.rotateY(yaw);

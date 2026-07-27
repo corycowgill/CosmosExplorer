@@ -49,6 +49,15 @@ export class Game {
     this.shotsHit = 0;
     this.bossesKilled = 0;
 
+    // Player-comfort settings (persisted).
+    this.settings = { invertY: false, sensitivity: 1, volume: 0.55 };
+    try {
+      const s = JSON.parse(localStorage.getItem('cosmos_settings') || '{}');
+      if (typeof s.invertY === 'boolean') this.settings.invertY = s.invertY;
+      if (typeof s.sensitivity === 'number') this.settings.sensitivity = s.sensitivity;
+      if (typeof s.volume === 'number') this.settings.volume = s.volume;
+    } catch (e) { /* ignore */ }
+
     this._initRenderer();
     this._initScene();
     this._initSubsystems();
@@ -248,6 +257,38 @@ export class Game {
       document.getElementById('menu').classList.remove('hidden');
     });
 
+    // Settings panel.
+    this._setEls = {
+      invert: document.getElementById('set-invert'),
+      sens: document.getElementById('set-sens'),
+      sensVal: document.getElementById('set-sens-val'),
+      vol: document.getElementById('set-vol'),
+      volVal: document.getElementById('set-vol-val'),
+    };
+    this._syncSettingsUI();
+    this._applySettings();
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      this._syncSettingsUI();
+      document.getElementById('menu').classList.add('hidden');
+      document.getElementById('settings').classList.remove('hidden');
+    });
+    document.getElementById('btn-set-close').addEventListener('click', () => {
+      document.getElementById('settings').classList.add('hidden');
+      document.getElementById('menu').classList.remove('hidden');
+    });
+    this._setEls.invert.addEventListener('click', () => {
+      this.settings.invertY = !this.settings.invertY;
+      this._saveSettings(); this._syncSettingsUI();
+    });
+    this._setEls.sens.addEventListener('input', () => {
+      this.settings.sensitivity = parseFloat(this._setEls.sens.value);
+      this._saveSettings(); this._syncSettingsUI();
+    });
+    this._setEls.vol.addEventListener('input', () => {
+      this.settings.volume = parseFloat(this._setEls.vol.value);
+      this._saveSettings(); this._syncSettingsUI();
+    });
+
     this.muted = false;
     this._streakCount = 0;
     this._streakTimer = 0;
@@ -396,7 +437,7 @@ export class Game {
   _toggleMute() {
     this.muted = !this.muted;
     this.audio.enabled = !this.muted;
-    if (this.audio.master) this.audio.master.gain.value = this.muted ? 0 : 0.55;
+    if (this.audio.master) this.audio.master.gain.value = this.muted ? 0 : this.audio.volume;
     this.hud.setMuted(this.muted);
   }
 
@@ -409,6 +450,27 @@ export class Game {
     // Show the best for the selected difficulty.
     this.hiScore = Number(localStorage.getItem(bestKey(key)) || 0);
     this.hud.setHiScore(this.hiScore);
+  }
+
+  _applySettings() {
+    this.input.invertY = this.settings.invertY;
+    this.player.turnScale = this.settings.sensitivity;
+    this.audio.setVolume(this.settings.volume);
+  }
+
+  _saveSettings() {
+    this._applySettings();
+    try { localStorage.setItem('cosmos_settings', JSON.stringify(this.settings)); } catch (e) { /* ignore */ }
+  }
+
+  _syncSettingsUI() {
+    const e = this._setEls;
+    e.invert.textContent = this.settings.invertY ? 'ON' : 'OFF';
+    e.invert.classList.toggle('on', this.settings.invertY);
+    e.sens.value = this.settings.sensitivity;
+    e.sensVal.textContent = this.settings.sensitivity.toFixed(2) + '×';
+    e.vol.value = this.settings.volume;
+    e.volVal.textContent = Math.round(this.settings.volume * 100) + '%';
   }
 
   _activateOverdrive() {

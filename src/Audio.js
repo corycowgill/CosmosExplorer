@@ -25,6 +25,7 @@ export class AudioFX {
     this.enabled = true;
     this._droneNodes = null;
     this.music = null;
+    this.volume = 0.55; // settings: master volume (0..1)
   }
 
   // Must be called from a user gesture (button click) to satisfy autoplay policies.
@@ -34,11 +35,17 @@ export class AudioFX {
     if (!AC) { this.enabled = false; return; }
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.55;
+    this.master.gain.value = this.enabled ? this.volume : 0;
     this.master.connect(this.ctx.destination);
   }
 
   resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+
+  // Settings: master volume (0..1). Applied live unless muted.
+  setVolume(v) {
+    this.volume = Math.max(0, Math.min(1, v));
+    if (this.master && this.enabled) this.master.gain.value = this.volume;
+  }
 
   _now() { return this.ctx.currentTime; }
 
