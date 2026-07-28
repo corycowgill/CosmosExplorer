@@ -32,6 +32,17 @@ const DIFFICULTIES = {
 };
 const bestKey = (diff) => `cosmos_hiscore_${diff}`;
 
+// First-run coach hints (shown once, one at a time, at the bottom of the screen).
+const TUTORIAL = [
+  'STEER with your <b>mouse</b> or <b>WASD</b> — fly toward the invaders',
+  'Hold <b>Click</b> or <b>Space</b> to <b>FIRE</b> your lasers',
+  '<b>Right-click</b> or <b>C</b> launches a homing <b>MISSILE</b>',
+  'Fly into glowing <b>POWER-UPS</b> to collect them',
+  'Fill the <b>OVERDRIVE</b> bar with kills, then press <b>X</b> to go nova',
+  'Every 5th wave brings a <b>BOSS</b>. Good luck out there, pilot!',
+];
+const TUT_STEP_TIME = 5.0;
+
 export class Game {
   constructor() {
     this.state = STATE.MENU;
@@ -48,6 +59,9 @@ export class Game {
     this.shotsFired = 0;
     this.shotsHit = 0;
     this.bossesKilled = 0;
+
+    // First-run tutorial (shown once ever).
+    this.tutorialDone = localStorage.getItem('cosmos_tut_done') === '1';
 
     // Player-comfort settings (persisted).
     this.settings = { invertY: false, sensitivity: 1, volume: 0.55 };
@@ -346,6 +360,12 @@ export class Game {
     this.state = STATE.PLAYING;
     this.input.enable();
     this.hud.toast('WAVE 1', 1.5);
+
+    // Kick off the one-time tutorial on the player's first run.
+    this._tutActive = !this.tutorialDone;
+    this._tutStep = -1;
+    this._tutTimer = 1.6; // let the WAVE 1 toast breathe first
+    if (this.tutorialDone) this.hud.hideHint();
   }
 
   _nextWave() {
@@ -369,6 +389,7 @@ export class Game {
 
   gameOver() {
     this.state = STATE.GAMEOVER;
+    if (this._tutActive) this._tutFinish();
     this.hud.hideBoss();
     this.hud.hideTargetArrows();
     document.body.classList.remove('overdrive');
@@ -450,6 +471,21 @@ export class Game {
     // Show the best for the selected difficulty.
     this.hiScore = Number(localStorage.getItem(bestKey(key)) || 0);
     this.hud.setHiScore(this.hiScore);
+  }
+
+  _tutAdvance() {
+    this._tutStep++;
+    if (this._tutStep >= TUTORIAL.length) { this._tutFinish(); return; }
+    const n = this._tutStep + 1;
+    this.hud.showHint(`${TUTORIAL[this._tutStep]}<span class="tut-step">TIP ${n} / ${TUTORIAL.length}</span>`);
+    this._tutTimer = TUT_STEP_TIME;
+  }
+
+  _tutFinish() {
+    this._tutActive = false;
+    this.hud.hideHint();
+    this.tutorialDone = true;
+    try { localStorage.setItem('cosmos_tut_done', '1'); } catch (e) { /* ignore */ }
   }
 
   _applySettings() {
@@ -681,6 +717,11 @@ export class Game {
     if (this._streakTimer > 0) {
       this._streakTimer -= dt;
       if (this._streakTimer <= 0) this._streakCount = 0;
+    }
+    // First-run tutorial: advance the coach hints on a timer.
+    if (this._tutActive) {
+      this._tutTimer -= dt;
+      if (this._tutTimer <= 0) this._tutAdvance();
     }
     // Overdrive end: clear the screen tint the frame it wears off.
     if (this._odWas && !this.player.overdriveActive) {

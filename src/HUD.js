@@ -143,6 +143,16 @@ export class HUD {
     el.classList.add('show');
   }
 
+  showHint(html) {
+    if (!this.el.hint) this.el.hint = document.getElementById('tutorial-hint');
+    this.el.hint.innerHTML = html;
+    this.el.hint.classList.add('show');
+  }
+  hideHint() {
+    if (!this.el.hint) this.el.hint = document.getElementById('tutorial-hint');
+    this.el.hint.classList.remove('show');
+  }
+
   showBoss(name = 'MOTHERSHIP') {
     if (this.el.bossLabel) this.el.bossLabel.textContent = `⚠ ${name} ⚠`;
     this.el.bossBar.classList.remove('hidden');

@@ -289,6 +289,31 @@ body.overdrive #overdrive-fx { opacity: 1; animation: odpulse 0.85s infinite eas
 #toast.show { opacity: 1; animation: toastpop 0.5s ease-out; }
 @keyframes toastpop { 0% { transform: translateX(-50%) scale(0.6); } 60% { transform: translateX(-50%) scale(1.12);} 100% { transform: translateX(-50%) scale(1);} }
 
+/* First-run tutorial hint */
+#tutorial-hint {
+  position: absolute;
+  left: 50%; bottom: 21%;
+  transform: translate(-50%, 10px);
+  max-width: 82vw;
+  text-align: center;
+  background: rgba(6, 12, 30, 0.7);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #eafcff;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 20px rgba(56, 246, 255, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s, transform 0.35s;
+}
+#tutorial-hint.show { opacity: 1; transform: translate(-50%, 0); }
+#tutorial-hint b { color: var(--cyan); }
+#tutorial-hint .tut-step { display: block; font-size: 10px; letter-spacing: 0.2em; color: rgba(160,220,255,0.6); margin-top: 4px; }
+
 /* Damage flash */
 #damage-flash {
   position: absolute; inset: 0;
