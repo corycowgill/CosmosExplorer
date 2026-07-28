@@ -15,6 +15,7 @@ import { Projectiles } from './Projectiles.js';
 import { ExplosionManager } from './ExplosionManager.js';
 import { Pickups } from './Pickups.js';
 import { Asteroids } from './Asteroids.js';
+import { Drones } from './Drones.js';
 import { HUD } from './HUD.js';
 import { Input } from './Input.js';
 import { AudioFX } from './Audio.js';
@@ -229,6 +230,7 @@ export class Game {
     this.explosions = new ExplosionManager(this.scene, this.quality === 'high' ? 18 : 12);
     this.pickups = new Pickups(this.scene);
     this.asteroids = new Asteroids(this.scene, this.quality);
+    this.drones = new Drones(this.scene);
     this.player = new Player(this.scene);
     this.aliens = new AlienManager(this.scene, this.projectiles, this.audio);
     this.hud = new HUD();
@@ -351,6 +353,7 @@ export class Game {
     this.aliens.reset();
     this.pickups.reset();
     this.asteroids.reset(this.player.position);
+    this.drones.reset();
     // Snap camera behind the ship.
     this._placeCameraBehind(true);
 
@@ -669,6 +672,13 @@ export class Game {
     this.explosions.update(dt);
     this.solar.update(dt, this.camera.position);
     this.asteroids.update(dt, this.player.position);
+    // Wingman drones orbit and auto-fire at the nearest enemy.
+    this.drones.update(dt, this.player, this.aliens.aliens, (pos, targetPos) => {
+      const dir = this._tmpV.subVectors(targetPos, pos).normalize();
+      const vel = dir.clone().multiplyScalar(480);
+      this.projectiles.fire(pos.clone(), vel, { enemy: false, drone: true, damage: 1, life: 1.6, radius: 3 });
+      this.audio.laser();
+    });
 
     // Firing — primary pulse laser.
     if (input.fire) {
@@ -756,7 +766,7 @@ export class Game {
       if (hitAlien) {
         const hitPos = b.mesh.position.clone();
         const wasMissile = b.missile;
-        this.shotsHit++;
+        if (!b.drone) this.shotsHit++; // drone auto-fire doesn't affect accuracy
         b.kill();
         const res = hitAlien.hitFrom(b.damage, hitPos, wasMissile);
         if (res.dead) this._onAlienDestroyed(hitAlien);
@@ -984,6 +994,10 @@ export class Game {
       this.player.addMissiles(2);
       this.hud.toast('MISSILES +2', 1.0);
       this.hud.setMissiles(this.player.missiles);
+    }
+    else if (kind === 'drone') {
+      this.drones.add();
+      this.hud.toast('WINGMAN DRONE ONLINE', 1.2);
     }
     this.audio.pickup();
   }

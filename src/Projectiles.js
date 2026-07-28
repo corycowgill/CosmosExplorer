@@ -79,6 +79,7 @@ class Bolt {
     this.damage = opts.damage ?? 1;
     this.radius = opts.radius ?? 3.2;
     this.missile = !!opts.missile;
+    this.drone = !!opts.drone;
     this.homingTarget = opts.homingTarget || null;
     this.homing = !!(opts.homing || opts.missile) && !!this.homingTarget;
     this.turnRate = opts.turnRate ?? 3.0;

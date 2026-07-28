@@ -12,6 +12,7 @@ const KINDS = {
   bonus:   { color: 0xffd54a, label: 'BONUS' },
   weapon:  { color: 0xff5ec4, label: 'WEAPON UP' },
   missile: { color: 0xffaa33, label: 'MISSILES +2' },
+  drone:   { color: 0x66ffff, label: 'WINGMAN DRONE' },
 };
 
 class Pickup {
@@ -87,10 +88,11 @@ export class Pickups {
     const r = Math.random();
     let kind = null;
     if (r < 0.05) kind = 'weapon';       // rare: upgrade the pulse laser
-    else if (r < 0.13) kind = 'missile'; // uncommon: +2 homing missiles
-    else if (r < 0.22) kind = 'repair';
-    else if (r < 0.34) kind = 'shield';
-    else if (r < 0.42) kind = 'bonus';
+    else if (r < 0.08) kind = 'drone';   // rare: a wingman drone
+    else if (r < 0.16) kind = 'missile'; // uncommon: +2 homing missiles
+    else if (r < 0.25) kind = 'repair';
+    else if (r < 0.37) kind = 'shield';
+    else if (r < 0.45) kind = 'bonus';
     if (biasHeal && !kind && r < 0.6) kind = 'shield';
     if (!kind) return;
     const p = this.pool.find((x) => !x.alive);
