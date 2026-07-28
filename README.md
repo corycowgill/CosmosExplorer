@@ -105,7 +105,9 @@ mobile, and with an Xbox controller** — no install, no build step.
 
 The ship always cruises forward along its nose; you steer the heading and blast anything
 in front of you. The crosshair shows where you'll shoot; a red reticle locks onto the
-nearest target in your sights.
+nearest target in your sights. **Double-tap left/right** (or D-pad ←/→, or the on-screen
+**ROLL** button) to **barrel-roll** — a quick sideways dash with brief invincibility to
+dodge incoming fire, Star Fox style.
 
 ## Running it
 

@@ -623,6 +623,9 @@ export class Game {
       this._setPaused(this.state === STATE.PLAYING);
     }
     if (edges.overdrive && this.state === STATE.PLAYING) this._activateOverdrive();
+    if (edges.evade && this.state === STATE.PLAYING) {
+      if (this.player.barrelRoll(edges.evade)) this.audio.evade();
+    }
 
     if (this.state === STATE.PLAYING) {
       this._updatePlaying(dt);

@@ -111,6 +111,12 @@ export class AudioFX {
     this._tone({ type: 'sine', freq: 990, freqEnd: 1320, dur: 0.14, gain: 0.16, delay: 0.07 });
   }
 
+  evade() {
+    // Quick whoosh for the barrel roll.
+    this._noise({ dur: 0.32, gain: 0.28, lpStart: 2600, lpEnd: 500 });
+    this._tone({ type: 'sine', freq: 520, freqEnd: 900, dur: 0.24, gain: 0.1 });
+  }
+
   waveClear() {
     const notes = [523, 659, 784, 1046];
     notes.forEach((f, i) => this._tone({ type: 'triangle', freq: f, dur: 0.3, gain: 0.18, delay: i * 0.1 }));

@@ -69,6 +69,13 @@ export class Player {
     this.radius = 6;
     this.bank = 0;
     this.enginePulse = 0;
+
+    // Barrel-roll evade: a quick sideways dash with brief i-frames.
+    this.rolling = false;
+    this.rollTimer = 0;
+    this.rollDir = 1;
+    this.rollCd = 0;
+    this.rollDuration = 0.5;
   }
 
   _buildShip() {
@@ -242,6 +249,9 @@ export class Player {
     this.overdriveActive = false;
     this.overdriveTimer = 0;
     if (this.overdriveAura) this.overdriveAura.visible = false;
+    this.rolling = false;
+    this.rollTimer = 0;
+    this.rollCd = 0;
     // Seed the trail at the ship so it doesn't streak from the origin.
     const p = this.group.position;
     for (let i = 0; i < this.trailCount; i++) {
@@ -304,6 +314,20 @@ export class Player {
     const fwd = this.forwardVector();
     this.velocity.copy(fwd).multiplyScalar(this.speed);
     this.group.position.addScaledVector(this.velocity, dt);
+
+    // ---- Barrel-roll evade ----
+    if (this.rollCd > 0) this.rollCd -= dt;
+    if (this.rolling) {
+      this.rollTimer -= dt;
+      const t = clamp(1 - this.rollTimer / this.rollDuration, 0, 1); // 0..1 progress
+      // Sideways dash — strong at the start, easing out.
+      const dash = 95 * (1 - t) * (1 - t);
+      _right.set(1, 0, 0).applyQuaternion(this.group.quaternion);
+      this.group.position.addScaledVector(_right, this.rollDir * dash * dt);
+      // 360° visual spin, overriding the bank for the duration.
+      this.model.rotation.z = this.bank + this.rollDir * Math.PI * 2 * t;
+      if (this.rollTimer <= 0) this.rolling = false;
+    }
 
     // ---- Engine visuals ----
     this.enginePulse += dt * 20;
@@ -438,6 +462,17 @@ export class Player {
 
   addMissiles(n) { this.missiles = clamp(this.missiles + n, 0, this.maxMissiles); }
 
+  // Start a barrel-roll evade in `dir` (-1 left, +1 right). Returns true if it began.
+  barrelRoll(dir) {
+    if (this.rolling || this.rollCd > 0 || !this.alive) return false;
+    this.rolling = true;
+    this.rollTimer = this.rollDuration;
+    this.rollDir = dir < 0 ? -1 : 1;
+    this.rollCd = 1.1;
+    return true;
+  }
+  get invulnerable() { return this.overdriveActive || this.rolling; }
+
   // Overdrive charge accrues from kills (blocked while overdrive is running).
   addOverdrive(n) { if (!this.overdriveActive) this.overdrive = clamp(this.overdrive + n, 0, this.overdriveMax); }
   canOverdrive() { return this.alive && !this.overdriveActive && this.overdrive >= this.overdriveMax; }
@@ -450,7 +485,8 @@ export class Player {
   }
 
   damageBy(amount) {
-    if (!this.alive || this.overdriveActive) return; // invincible during overdrive
+    // Invincible during overdrive and while barrel-rolling (dodge frames).
+    if (!this.alive || this.overdriveActive || this.rolling) return;
     this.shieldRegenDelay = 3.5;
     if (this.shield > 0) {
       const absorbed = Math.min(this.shield, amount);

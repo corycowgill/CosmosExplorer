@@ -407,6 +407,13 @@ body.overdrive #overdrive-fx { opacity: 1; animation: odpulse 0.85s infinite eas
 }
 .touch-btn.overdrive.ready { opacity: 1; animation: odready 0.7s infinite ease-in-out; }
 .touch-btn.overdrive:active { background: rgba(255,210,74,0.3); }
+.touch-btn.roll {
+  width: 76px; height: 76px;
+  border-color: rgba(122,255,209,0.6);
+  color: #7affd1;
+  box-shadow: 0 0 18px rgba(122,255,209,0.25);
+}
+.touch-btn.roll:active { background: rgba(122,255,209,0.28); }
 
 /* ---------------- Overlay screens ---------------- */
 .overlay-screen {

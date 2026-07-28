@@ -22,8 +22,9 @@ export class Input {
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, active: false, down: false, right: false };
     this.touch = { steerX: 0, steerY: 0, fire: false, boost: false, missile: false };
-    this.edges = { pause: false, mute: false, overdrive: false };
+    this.edges = { pause: false, mute: false, overdrive: false, evade: 0 };
     this._padPrev = {};
+    this._tapTime = { left: 0, right: 0 };
     this.enabled = false;
     this.invertY = false; // settings: invert pitch axis
 
@@ -49,6 +50,7 @@ export class Input {
     this.edges.pause = false;
     this.edges.mute = false;
     this.edges.overdrive = false;
+    this.edges.evade = 0;
     return e;
   }
 
@@ -60,6 +62,15 @@ export class Input {
       if (e.code === 'Escape' || e.code === 'KeyP') this.edges.pause = true;
       if (e.code === 'KeyM') this.edges.mute = true;
       if (e.code === 'KeyX' || e.code === 'KeyV') this.edges.overdrive = true;
+      // Double-tap left/right for a barrel-roll evade.
+      const now = performance.now();
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+        if (now - this._tapTime.left < 300) this.edges.evade = -1;
+        this._tapTime.left = now;
+      } else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+        if (now - this._tapTime.right < 300) this.edges.evade = 1;
+        this._tapTime.right = now;
+      }
       this.keys.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -78,6 +89,8 @@ export class Input {
     bind('btn-pause', () => { this.edges.pause = true; });
     bind('btn-mute', () => { this.edges.mute = true; });
     bind('btn-overdrive', () => { this.edges.overdrive = true; });
+    // Roll dodges toward the current joystick lean (default right).
+    bind('btn-roll', () => { this.edges.evade = this.touch.steerX < -0.15 ? -1 : 1; });
   }
 
   _bindMouse() {
@@ -205,6 +218,11 @@ export class Input {
     const od = btn(10) || btn(11);
     if (od && !this._padPrev.od) this.edges.overdrive = true;
     this._padPrev.od = od;
+    // Barrel-roll evade on D-pad left/right (14/15) — edge-detected.
+    const dl = btn(14), dr = btn(15);
+    if (dl && !this._padPrev.dl) this.edges.evade = -1;
+    if (dr && !this._padPrev.dr) this.edges.evade = 1;
+    this._padPrev.dl = dl; this._padPrev.dr = dr;
   }
 
   // Called once per frame. Produces the merged control state.
