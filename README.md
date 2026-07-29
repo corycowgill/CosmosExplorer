@@ -75,6 +75,9 @@ mobile, and with an Xbox controller** — no install, no build step.
   floating score popups, killstreak callouts (TRIPLE! / RAMPAGE! / GODLIKE!), a cinematic
   **sun lens flare** with an anamorphic streak, and an `UnrealBloom` post pipeline plus a
   color-grade (vignette, chromatic aberration, film grain).
+- **Hyperspace boost** — pin the throttle and the stars smear into radial warp
+  streaks, the field-of-view kicks wide and the chromatic aberration swells for a
+  visceral jump-to-lightspeed rush.
 - **A futuristic HUD** — animated score counter, wave & combo tracker, hull/shield bars,
   velocity + weapon heat, weapon level, missile count, a live **radar**, a target
   **lock-on** reticle, **off-screen enemy arrows** (with a distinct boss marker), an
@@ -152,6 +155,7 @@ src/
   main.js             Bootstrap + error surface
   Game.js             Renderer, bloom, camera, game loop, collisions, state
   SolarSystem.js      Sun, planets, rings, starfield, nebula
+  WarpStreaks.js      Hyperspace boost streaks (pooled line field)
   Player.js           Rocket ship model, flight physics, weapon, exhaust trail
   AlienManager.js     Alien ship types, AI, wave spawning
   Projectiles.js      Pooled laser bolts (player + enemy)

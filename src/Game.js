@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 import { SolarSystem } from './SolarSystem.js';
+import { WarpStreaks } from './WarpStreaks.js';
 import { Player } from './Player.js';
 import { AlienManager } from './AlienManager.js';
 import { Projectiles } from './Projectiles.js';
@@ -114,6 +115,7 @@ export class Game {
     this._buildEnvironment();
 
     this.solar = new SolarSystem(this.scene, this.quality);
+    this.warp = new WarpStreaks(this.scene, this.quality === 'high' ? 220 : 120);
 
     // Post-processing: subtle bloom that makes lasers, engines, the sun and
     // explosions glow. Lighter on low-end devices.
@@ -170,6 +172,7 @@ export class Game {
       `,
     });
     this.composer.addPass(this.gradePass);
+    this._baseAber = this.gradePass.uniforms.uAberration.value;
   }
 
   // Build a PMREM reflection map from a procedural equirectangular "space" image:
@@ -354,6 +357,8 @@ export class Game {
     this.pickups.reset();
     this.asteroids.reset(this.player.position);
     this.drones.reset();
+    this.warp.reset();
+    this.gradePass.uniforms.uAberration.value = this._baseAber;
     // Snap camera behind the ship.
     this._placeCameraBehind(true);
 
@@ -746,6 +751,12 @@ export class Game {
     // Engine audio tracks speed.
     const spd = this.player.speed;
     this.audio.setEngine(clamp((spd - 40) / 110, 0, 1));
+
+    // Warp streaks + boost-driven color grade: stars smear into hyperspace lines and
+    // the chromatic aberration swells while the throttle is pinned.
+    const fwd = this.player.forwardVector(this._tmpV);
+    this.warp.update(dt, this.player.position, fwd, this.player.speed, !!input.boost);
+    this.gradePass.uniforms.uAberration.value = this._baseAber + this.warp.amount * 2.2;
 
     // Camera + HUD.
     this._chaseCamera(dt, input);
