@@ -375,6 +375,33 @@ class Alien {
     this.shieldRim = this.mesh.getObjectByName('sentinelShieldRim');
     // Lancer charge-glow reference.
     this.chargeGlow = this.mesh.getObjectByName('lancerCharge');
+
+    // Lancer targeting beam — a thin sight that locks onto the player and thickens /
+    // reddens as the shot charges, then snaps off bright when it fires. The group
+    // faces the player (lookAt), so a +Z-aligned cylinder points straight at them.
+    if (type === 'lancer') {
+      const beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 1, 6, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xffee44, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      beam.rotation.x = Math.PI / 2;   // cylinder axis (local Y) → group +Z
+      beam.name = 'lancerSight';
+      this.group.add(beam);
+      this.sightBeam = beam;
+    }
+
+    // Stinger dash trail — a flared cone streaming behind the dart, lit only during
+    // the ram dash. The group faces travel (+Z), so the cone tapers back along -Z.
+    if (type === 'stinger') {
+      const cone = new THREE.Mesh(
+        new THREE.ConeGeometry(1.3, 11, 8, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0xff5522, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      cone.rotation.x = -Math.PI / 2;  // wide base near the ship, apex trailing behind
+      cone.position.z = -6.5;
+      this.dashTrail = cone;
+      this.group.add(cone);
+    }
   }
 
   spawn(pos) {
@@ -542,14 +569,14 @@ class Alien {
     this.trail.scale.setScalar(this.def.radius * 1.7 * throb);
 
     // Kamikaze telegraph + lancer charge glow (override the generic aura above).
-    if (this.type === 'stinger') this._updateStinger();
-    else if (this.type === 'lancer') this._updateLancer(dt);
+    if (this.type === 'stinger') this._updateStinger(dt);
+    else if (this.type === 'lancer') this._updateLancer(dt, dist);
 
     // Fire logic handled by manager (needs projectile pool); expose readiness.
     this.fireTimer -= dt;
   }
 
-  _updateStinger() {
+  _updateStinger(dt) {
     if (this.kState === 'lock') {
       // Rapid red flash — the tell that a ram dash is imminent.
       this.aura.material.color.setHex(0xff2200);
@@ -563,18 +590,38 @@ class Alien {
       this.aura.material.color.setHex(this.def.glow);
       this.aura.scale.setScalar(this.def.radius * 2.1);
     }
+    // Streaking dash trail: flares to life during the ram, fades otherwise.
+    if (this.dashTrail) {
+      const target = this.kState === 'dash' ? 0.7 : 0;
+      const m = this.dashTrail.material;
+      m.opacity += (target - m.opacity) * damp(12, dt);
+      const flick = 0.9 + Math.sin(this.wobble * 20) * 0.1;
+      this.dashTrail.scale.set(flick, this.kState === 'dash' ? 1.25 : 1, flick);
+    }
   }
 
-  _updateLancer(dt) {
+  _updateLancer(dt, dist) {
     if (!this.chargeGlow) return;
     if (this.charging) {
       const prog = clamp(1 - this.chargeTimer / LANCER_CHARGE, 0, 1);
       this.chargeGlow.material.opacity = 0.4 + prog * 0.6;
       this.chargeGlow.scale.setScalar(2 + prog * 6);
       this.aura.material.opacity = 0.4 + prog * 0.5; // whole ship glows as it charges
+      // Targeting sight: lock a thin beam onto the player, thickening and reddening
+      // as the shot nears — a fair, readable "get out of the line" telegraph.
+      if (this.sightBeam) {
+        const front = 5;
+        const len = Math.max(1, dist - front);
+        this.sightBeam.scale.set(1 + prog * 3, len, 1 + prog * 3);
+        this.sightBeam.position.z = front + len / 2;
+        this.sightBeam.material.opacity = 0.12 + prog * 0.5;
+        this.sightBeam.material.color.setRGB(1, 0.9 - prog * 0.6, 0.2 * (1 - prog));
+      }
     } else {
       this.chargeGlow.material.opacity = Math.max(0, this.chargeGlow.material.opacity - dt * 5);
       this.chargeGlow.scale.setScalar(2);
+      // Beam snaps off, fading fast — reads as the discharge streak.
+      if (this.sightBeam) this.sightBeam.material.opacity = Math.max(0, this.sightBeam.material.opacity - dt * 4);
     }
   }
 
@@ -839,6 +886,12 @@ export class AlienManager {
             const muzzle = a.position.clone().addScaledVector(dir, a.radius + 3);
             this.projectiles.fire(muzzle, vel, { enemy: true, damage: a.def.damage * this.diff.enemyDmg, life: 4, radius: 3, color: 0xffee66 });
             if (this.audio) this.audio.enemyLaser();
+            // Snap the sight to a bright, thick flash so the fade reads as the shot.
+            if (a.sightBeam) {
+              a.sightBeam.material.opacity = 0.95;
+              a.sightBeam.material.color.setHex(0xffffcc);
+              a.sightBeam.scale.x = 4.5; a.sightBeam.scale.z = 4.5;
+            }
             a.charging = false;
             a.fireTimer = a.def.fireCooldown * (0.8 + Math.random() * 0.5) * this.diff.fireRate;
           }
