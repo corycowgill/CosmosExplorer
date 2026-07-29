@@ -48,12 +48,17 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Destructible asteroid field** — faceted, tumbling rocks you can blast apart for
   points and the occasional power-up, and must weave through — fly into one and it bumps
   your hull. The field wraps around the ship so it's effectively endless.
-- **Four alien ship types**, each with distinct models and AI:
+- **Six alien ship types**, each with distinct models and AI:
   - **Scout** — fast, fragile, swarms you.
   - **Fighter** — circle-strafes and fires often.
   - **Cruiser** — slow, tanky flying saucer that hits hard and drops loot.
   - **Sentinel** — a shielded foe whose frontal energy shield blocks head-on fire;
     flank it, break the shield with sustained hits, or bypass it with a missile.
+  - **Stinger** — a fragile kamikaze dart that locks on (flashing red as a tell),
+    then commits to a fast straight dash to ram your hull. Blast it before it connects.
+  - **Lancer** — a long-range sniper that hangs back and telegraphs a bright,
+    growing charge, then looses a fast, precise bolt. Break line of sight or kill it
+    mid-charge.
 - **Boss fights** — every 5th wave a boss warps in with a dedicated health bar,
   alternating between two very different foes: the **Mothership** (bolt fans + summons
   scout escorts) and the **Warden** dreadnought (radial bullet-ring bursts, curving

@@ -31,6 +31,16 @@ const TYPES = {
     score: 350, fireCooldown: 2.0, damage: 14, projSpeed: 145, behaviour: 'sentinel',
     shieldHP: 6,
   },
+  // Stinger: a fast, fragile kamikaze that locks on, then dashes to ram you.
+  stinger: {
+    color: 0xff5522, glow: 0xffaa66, radius: 4, health: 2, speed: 58, turn: 2.2,
+    score: 150, fireCooldown: 0, damage: 0, projSpeed: 0, behaviour: 'kamikaze', ramDamage: 26,
+  },
+  // Lancer: a long-range sniper that charges a visible beam, then fires a fast bolt.
+  lancer: {
+    color: 0xffee44, glow: 0xffffaa, radius: 5, health: 5, speed: 15, turn: 0.8,
+    score: 300, fireCooldown: 3.0, damage: 26, projSpeed: 300, behaviour: 'sniper',
+  },
   // Mothership boss: huge, tanky, fires aimed fans and summons scouts.
   boss: {
     color: 0xaa44ff, glow: 0xdd88ff, radius: 26, health: 120, speed: 16, turn: 0.5,
@@ -44,6 +54,9 @@ const TYPES = {
 };
 
 const BOSS_TYPES = new Set(['boss', 'warden']);
+
+// How long a Lancer telegraphs its charge before it looses a bolt.
+const LANCER_CHARGE = 1.4;
 
 function buildScout(def) {
   const g = new THREE.Group();
@@ -265,7 +278,59 @@ function buildWarden(def) {
   return g;
 }
 
-const BUILDERS = { scout: buildScout, fighter: buildFighter, cruiser: buildCruiser, boss: buildBoss, sentinel: buildSentinel, warden: buildWarden };
+function buildStinger(def) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.8, roughness: 0.3, envMapIntensity: 1.3, emissive: def.color, emissiveIntensity: 0.4 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a0e05, metalness: 0.7, roughness: 0.5 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
+  // Dart body — a sharp cone pointing forward (+Z is travel/forward for aliens).
+  const body = new THREE.Mesh(new THREE.ConeGeometry(1.6, 6, 8), mat);
+  body.rotation.x = Math.PI / 2; // apex toward +Z
+  g.add(body);
+  // Glowing tip "eye".
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 10), glowMat);
+  eye.position.z = 3;
+  g.add(eye);
+  // Swept-back wings.
+  for (const s of [-1, 1]) {
+    const wing = new THREE.Mesh(new THREE.ConeGeometry(0.6, 3.5, 4), dark);
+    wing.rotation.z = Math.PI / 2 * s;
+    wing.position.set(2 * s, 0, -1.5);
+    g.add(wing);
+  }
+  return g;
+}
+
+function buildLancer(def) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.85, roughness: 0.3, envMapIntensity: 1.3, emissive: def.color, emissiveIntensity: 0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2405, metalness: 0.8, roughness: 0.4 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: def.glow });
+  // Long thin hull.
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.3, 7, 12), mat);
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+  // Big front cannon lens (the charge emitter).
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1, 2, 14), dark);
+  lens.rotation.x = Math.PI / 2;
+  lens.position.z = 4;
+  g.add(lens);
+  // Charge glow — grows/brightens while charging a shot.
+  const charge = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: def.glow, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  charge.scale.setScalar(3);
+  charge.position.z = 5.2;
+  charge.name = 'lancerCharge';
+  g.add(charge);
+  // Stabilizer fins at the rear.
+  for (const s of [-1, 1]) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 1.6), glowMat);
+    fin.position.set(1.4 * s, 0, -2.6);
+    g.add(fin);
+  }
+  return g;
+}
+
+const BUILDERS = { scout: buildScout, fighter: buildFighter, cruiser: buildCruiser, boss: buildBoss, sentinel: buildSentinel, warden: buildWarden, stinger: buildStinger, lancer: buildLancer };
 
 class Alien {
   constructor(scene, type) {
@@ -308,6 +373,8 @@ class Alien {
     // Sentinel shield references.
     this.shieldMesh = this.mesh.getObjectByName('sentinelShield');
     this.shieldRim = this.mesh.getObjectByName('sentinelShieldRim');
+    // Lancer charge-glow reference.
+    this.chargeGlow = this.mesh.getObjectByName('lancerCharge');
   }
 
   spawn(pos) {
@@ -328,6 +395,13 @@ class Alien {
     this.shieldRecharge = 0;
     this.shieldFlash = 0;
     if (this.shieldMesh) { this.shieldMesh.visible = this.shieldActive; this.shieldRim.visible = this.shieldActive; }
+    // Stinger kamikaze + Lancer sniper state.
+    this.kState = 'seek';
+    this.kTimer = 0;
+    this.dashDir = new THREE.Vector3();
+    this.charging = false;
+    this.chargeTimer = 0;
+    if (this.chargeGlow) this.chargeGlow.material.opacity = 0;
   }
 
   kill() { this.alive = false; this.group.visible = false; }
@@ -368,6 +442,7 @@ class Alien {
 
     // Desired heading depends on behaviour.
     let desired = toPlayer.clone();
+    let extraSpeed = 1; // per-behaviour speed multiplier (dash / hold / etc.)
     if (def.behaviour === 'strafe' && dist < 260) {
       // Circle-strafe: mix of toward-player and perpendicular.
       const up = new THREE.Vector3(0, 1, 0);
@@ -398,6 +473,32 @@ class Alien {
         desired.copy(new THREE.Vector3().crossVectors(toPlayer, up)).multiplyScalar(this.strafeDir * 0.5);
       }
       desired.normalize();
+    } else if (def.behaviour === 'kamikaze') {
+      // Seek → telegraph a lock → commit to a fast straight dash to ram the player.
+      this.kTimer -= dt;
+      if (this.kState === 'seek') {
+        desired.copy(toPlayer);
+        if (dist < 320) { this.kState = 'lock'; this.kTimer = 0.55; }
+      } else if (this.kState === 'lock') {
+        desired.copy(toPlayer);
+        extraSpeed = 0.12; // slow, aiming — the tell that a dash is coming
+        if (this.kTimer <= 0) { this.kState = 'dash'; this.kTimer = 1.6; this.dashDir.copy(toPlayer); }
+      } else { // dash
+        desired.copy(this.dashDir);
+        extraSpeed = 2.6;
+        if (this.kTimer <= 0) this.kState = 'seek';
+      }
+      desired.normalize();
+    } else if (def.behaviour === 'sniper') {
+      // Hold long range, strafe, and slow to a near-stop while charging a shot.
+      const ideal = 420;
+      const up = new THREE.Vector3(0, 1, 0);
+      const side = new THREE.Vector3().crossVectors(toPlayer, up).normalize().multiplyScalar(this.strafeDir * 0.6);
+      desired.copy(side);
+      if (dist > ideal + 60) desired.addScaledVector(toPlayer, 1.0);
+      else if (dist < ideal - 60) desired.addScaledVector(toPlayer, -1.0);
+      desired.normalize();
+      if (this.charging) { extraSpeed = 0.1; this.chargeTimer -= dt; }
     } else {
       // seek with wobble
       desired.x += Math.sin(this.wobble * 1.3) * 0.25;
@@ -406,25 +507,24 @@ class Alien {
     }
 
     // Steer velocity toward desired.
-    const speed = def.speed * (0.9 + difficulty * 0.06) * speedMul;
+    const speed = def.speed * (0.9 + difficulty * 0.06) * speedMul * extraSpeed;
     const targetVel = desired.multiplyScalar(speed);
     this.velocity.lerp(targetVel, damp(def.turn * 1.4, dt));
     this.group.position.addScaledVector(this.velocity, dt);
 
-    // Facing: sentinels keep their shielded front toward the player; others face
-    // their travel direction.
-    if (this.type === 'sentinel') {
+    // Facing: sentinels/lancers aim their front at the player; others face travel.
+    if (this.type === 'sentinel' || this.type === 'lancer') {
       this.group.lookAt(playerPos);
       this._facing.copy(toPlayer); // +Z of the group points at the player
     } else if (this.velocity.lengthSq() > 0.01) {
       const look = new THREE.Vector3().copy(this.group.position).add(this.velocity);
       this.group.lookAt(look);
     }
-    // Spin for character (sentinels don't spin — their shield must stay put).
+    // Spin for character (directional craft keep their nose forward).
     if (this.type === 'cruiser') this.mesh.rotation.y += dt * 1.2;
     else if (this.type === 'boss') this.mesh.rotation.y += dt * 0.5;
     else if (this.type === 'warden') this.mesh.rotation.z += dt * 0.9;
-    else if (this.type !== 'sentinel') this.mesh.rotation.z += dt * 0.6;
+    else if (!['sentinel', 'stinger', 'lancer'].includes(this.type)) this.mesh.rotation.z += dt * 0.6;
 
     // Sentinel shield: recharge after breaking, and drive its glow/flash.
     if (this.type === 'sentinel') this._updateShield(dt);
@@ -441,8 +541,41 @@ class Alien {
     const throb = 0.85 + Math.sin(this.wobble * 4) * 0.15;
     this.trail.scale.setScalar(this.def.radius * 1.7 * throb);
 
+    // Kamikaze telegraph + lancer charge glow (override the generic aura above).
+    if (this.type === 'stinger') this._updateStinger();
+    else if (this.type === 'lancer') this._updateLancer(dt);
+
     // Fire logic handled by manager (needs projectile pool); expose readiness.
     this.fireTimer -= dt;
+  }
+
+  _updateStinger() {
+    if (this.kState === 'lock') {
+      // Rapid red flash — the tell that a ram dash is imminent.
+      this.aura.material.color.setHex(0xff2200);
+      this.aura.material.opacity = 0.4 + Math.abs(Math.sin(this.wobble * 12)) * 0.55;
+      this.aura.scale.setScalar(this.def.radius * 2.8);
+    } else if (this.kState === 'dash') {
+      this.aura.material.color.setHex(0xff5522);
+      this.aura.material.opacity = 0.75;
+      this.aura.scale.setScalar(this.def.radius * 3.2);
+    } else {
+      this.aura.material.color.setHex(this.def.glow);
+      this.aura.scale.setScalar(this.def.radius * 2.1);
+    }
+  }
+
+  _updateLancer(dt) {
+    if (!this.chargeGlow) return;
+    if (this.charging) {
+      const prog = clamp(1 - this.chargeTimer / LANCER_CHARGE, 0, 1);
+      this.chargeGlow.material.opacity = 0.4 + prog * 0.6;
+      this.chargeGlow.scale.setScalar(2 + prog * 6);
+      this.aura.material.opacity = 0.4 + prog * 0.5; // whole ship glows as it charges
+    } else {
+      this.chargeGlow.material.opacity = Math.max(0, this.chargeGlow.material.opacity - dt * 5);
+      this.chargeGlow.scale.setScalar(2);
+    }
   }
 
   _updateShield(dt) {
@@ -484,7 +617,7 @@ export class AlienManager {
     this.projectiles = projectiles;
     this.audio = audio;
     this.aliens = [];
-    this.pools = { scout: [], fighter: [], cruiser: [], boss: [], sentinel: [], warden: [] };
+    this.pools = { scout: [], fighter: [], cruiser: [], boss: [], sentinel: [], warden: [], stinger: [], lancer: [] };
     this.wave = 0;
     this.toSpawn = 0;
     this.spawnTimer = 0;
@@ -549,11 +682,15 @@ export class AlienManager {
     const fighters = Math.round((Math.max(0, wave - 1) + Math.floor(wave / 2)) * m);
     const cruisers = Math.floor(wave / 3);
     const sentinels = wave >= 3 ? Math.round((1 + Math.floor((wave - 3) / 2)) * m) : 0;
+    const stingers = wave >= 2 ? Math.round((1 + Math.floor((wave - 2) / 2)) * m) : 0;
+    const lancers = wave >= 4 ? Math.round((1 + Math.floor((wave - 4) / 3)) * m) : 0;
     this._queue = [];
     for (let i = 0; i < scouts; i++) this._queue.push('scout');
     for (let i = 0; i < fighters; i++) this._queue.push('fighter');
     for (let i = 0; i < cruisers; i++) this._queue.push('cruiser');
     for (let i = 0; i < sentinels; i++) this._queue.push('sentinel');
+    for (let i = 0; i < stingers; i++) this._queue.push('stinger');
+    for (let i = 0; i < lancers; i++) this._queue.push('lancer');
     // Shuffle.
     for (let i = this._queue.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -682,6 +819,34 @@ export class AlienManager {
           else this._bossAttack(a, player);
           a.bossTimer = randRange(1.4, 2.2) * this.diff.fireRate;
         }
+        continue;
+      }
+
+      // Stinger never shoots — it rams (handled by ship-collision damage).
+      if (a.type === 'stinger') {
+        if (a.position.distanceTo(playerPos) > 1400) a.kill();
+        continue;
+      }
+
+      // Lancer: telegraph a bright charge, then loose one fast, precise aimed bolt.
+      if (a.type === 'lancer') {
+        const dist = a.position.distanceTo(playerPos);
+        if (a.charging) {
+          if (a.chargeTimer <= 0) {
+            // Fire straight at the player (fast bolt — hard to dodge, so aim true).
+            const dir = new THREE.Vector3().subVectors(playerPos, a.position).normalize();
+            const vel = dir.clone().multiplyScalar(a.def.projSpeed);
+            const muzzle = a.position.clone().addScaledVector(dir, a.radius + 3);
+            this.projectiles.fire(muzzle, vel, { enemy: true, damage: a.def.damage * this.diff.enemyDmg, life: 4, radius: 3, color: 0xffee66 });
+            if (this.audio) this.audio.enemyLaser();
+            a.charging = false;
+            a.fireTimer = a.def.fireCooldown * (0.8 + Math.random() * 0.5) * this.diff.fireRate;
+          }
+        } else if (a.fireTimer <= 0 && dist < 560) {
+          a.charging = true;
+          a.chargeTimer = LANCER_CHARGE;
+        }
+        if (a.position.distanceTo(playerPos) > 1400) a.kill();
         continue;
       }
 

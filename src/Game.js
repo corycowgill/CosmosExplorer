@@ -819,10 +819,11 @@ export class Game {
       if (!a.alive) continue;
       const rr = this.player.radius + a.radius;
       if (pp.distanceToSquared(a.position) < rr * rr) {
-        // Ram: destroy alien, damage player.
+        // Ram: destroy alien, damage player. Kamikaze stingers hit harder.
         const src = a.position.clone();
+        const ram = a.def.ramDamage ?? 18;
         this._onAlienDestroyed(a);
-        this._damagePlayer(18 * this.diffConfig.enemyDmg, src);
+        this._damagePlayer(ram * this.diffConfig.enemyDmg, src);
       }
     }
   }
