@@ -82,6 +82,7 @@ export class Player {
     // Polished metal that catches the environment reflections, warm accent metal,
     // dark greeble panels, glowing trim and glass.
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdbe6f2, metalness: 0.95, roughness: 0.22, envMapIntensity: 1.6, emissive: 0x0a0f16, emissiveIntensity: 0.3 });
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0xb8c6d8, metalness: 0.96, roughness: 0.28, envMapIntensity: 1.5, emissive: 0x080c12, emissiveIntensity: 0.25 });
     const accentMat = new THREE.MeshStandardMaterial({ color: 0xff5533, metalness: 0.7, roughness: 0.3, envMapIntensity: 1.3, emissive: 0x551100, emissiveIntensity: 0.5 });
     const trimMat = new THREE.MeshStandardMaterial({ color: 0xe8b24a, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.5, emissive: 0x2a1c04, emissiveIntensity: 0.3 });
     const panelMat = new THREE.MeshStandardMaterial({ color: 0x3a4452, metalness: 0.85, roughness: 0.5, envMapIntensity: 0.9 });
@@ -89,100 +90,136 @@ export class Player {
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x2299ff, metalness: 0.5, roughness: 0.06, envMapIntensity: 1.8, emissive: 0x113355, emissiveIntensity: 0.8, transparent: true, opacity: 0.88 });
     const engineMat = new THREE.MeshBasicMaterial({ color: 0x66ffff });
 
-    // Fuselage
-    const fuse = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.9, 9, 24), bodyMat);
-    fuse.rotation.x = Math.PI / 2;
-    this.model.add(fuse);
+    // --- Fuselage: a smooth lathe-turned hull (nose −Z, tail +Z) for a sleek,
+    // reflective body of revolution instead of a plain cylinder. ---
+    const profile = [
+      [0.02, 6.3], [0.35, 5.6], [0.7, 4.7], [1.05, 3.4], [1.35, 1.8],
+      [1.55, 0.2], [1.68, -1.4], [1.9, -2.8], [2.0, -3.6], [1.7, -4.3], [1.2, -4.6],
+    ].map(([r, y]) => new THREE.Vector2(r, y));
+    const hull = new THREE.Mesh(new THREE.LatheGeometry(profile, 28), hullMat);
+    hull.rotation.x = -Math.PI / 2;   // profile +Y (nose) → −Z (forward)
+    this.model.add(hull);
 
-    // Panel-line rings + a dorsal spine greeble for surface detail.
-    for (const z of [-3.5, -1, 1.5, 3.2]) {
-      const band = new THREE.Mesh(new THREE.TorusGeometry(1.62, 0.09, 6, 24), panelMat);
+    // Panel-line rings around the hull for surface detail.
+    for (const [z, r] of [[-3.4, 1.98], [-1.4, 1.72], [0.6, 1.5], [2.6, 1.2]]) {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(r, 0.07, 6, 28), panelMat);
       band.position.z = z;
       this.model.add(band);
     }
-    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 7), panelMat);
-    spine.position.set(0, 1.35, 0.5);
+    // Dorsal spine + glowing flank strips.
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, 6.5), panelMat);
+    spine.position.set(0, 1.3, 0.6);
     this.model.add(spine);
-    // Glowing accent strips running along both flanks.
     for (const x of [-1, 1]) {
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 6.5), stripMat);
-      strip.position.set(x * 1.35, 0.2, 0.2);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 6.2), stripMat);
+      strip.position.set(x * 1.42, 0.15, 0.3);
       this.model.add(strip);
     }
+    // Ventral sensor pod.
+    const pod = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1.6, 6, 10), panelMat);
+    pod.rotation.x = Math.PI / 2;
+    pod.position.set(0, -1.5, -1.2);
+    this.model.add(pod);
 
-    // Nose cone
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.4, 4.5, 16), accentMat);
-    nose.rotation.x = -Math.PI / 2;
-    nose.position.z = -6.6;
-    this.model.add(nose);
+    // Nose accent chevron + a warm beacon tip.
+    const noseRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.14, 8, 20), accentMat);
+    noseRing.position.z = -4.6;
+    this.model.add(noseRing);
+    const noseTip = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffe08a }));
+    noseTip.position.set(0, 0, -6.4);
+    this.model.add(noseTip);
 
-    // Cockpit canopy
-    const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.25, 16, 12, 0, Math.PI * 2, 0, Math.PI / 1.7), glassMat);
+    // --- Cockpit: a raised fairing with a framed, tinted canopy. ---
+    const cockpitBase = new THREE.Mesh(new THREE.SphereGeometry(1.25, 18, 12), hullMat);
+    cockpitBase.scale.set(1, 0.55, 1.9);
+    cockpitBase.position.set(0, 0.7, -1.9);
+    this.model.add(cockpitBase);
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.0, 18, 12, 0, Math.PI * 2, 0, Math.PI / 1.7), glassMat);
     canopy.rotation.x = Math.PI / 2.1;
-    canopy.position.set(0, 0.9, -2.2);
-    canopy.scale.set(1, 0.7, 1.6);
+    canopy.position.set(0, 1.02, -2.2);
+    canopy.scale.set(1, 0.62, 1.7);
     this.model.add(canopy);
+    const canopyFrame = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.07, 6, 20), trimMat);
+    canopyFrame.rotation.x = Math.PI / 2;
+    canopyFrame.scale.set(1, 1.7, 1);
+    canopyFrame.position.set(0, 0.86, -2.2);
+    this.model.add(canopyFrame);
 
-    // Rear engine ring (gold trim)
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.4, 12, 28), trimMat);
-    ring.position.z = 4.4;
+    // --- Swept delta wings via an extruded planform (proper leading-edge sweep). ---
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 1.4);       // root leading edge
+    wingShape.lineTo(4.6, -0.6);    // swept tip leading edge
+    wingShape.lineTo(4.6, -1.7);    // tip trailing edge
+    wingShape.lineTo(0, -2.6);      // root trailing edge
+    wingShape.closePath();
+    const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.08, bevelSegments: 1 });
+    wingGeo.translate(0, 0, -0.11);   // centre thickness on Y after rotation
+    wingGeo.rotateX(-Math.PI / 2);    // lay flat: span→X, chord→Z, thickness→Y
+    for (const s of [1, -1]) {
+      const w = new THREE.Mesh(wingGeo, bodyMat);
+      w.scale.x = s;                  // mirror for the left wing
+      w.position.set(s * 1.35, -0.15, 1.4);
+      this.model.add(w);
+      // Glowing leading edge + gold strake running out the wing.
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.12, 0.18), stripMat);
+      edge.position.set(s * 3.2, -0.05, 0.35);
+      edge.rotation.y = s * 0.42;
+      this.model.add(edge);
+      const strake = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.3, 3.2), trimMat);
+      strake.position.set(s * 2.0, -0.12, 1.6);
+      strake.rotation.y = s * 0.18;
+      this.model.add(strake);
+      // Wingtip missile pod + running light (port red / starboard green).
+      const podTip = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.6, 6, 10), panelMat);
+      podTip.rotation.x = Math.PI / 2;
+      podTip.position.set(s * 4.7, -0.1, 1.1);
+      this.model.add(podTip);
+      const navLight = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshBasicMaterial({ color: s < 0 ? 0xff3355 : 0x33ff66 }));
+      navLight.position.set(s * 4.7, -0.1, 0.1);
+      this.model.add(navLight);
+    }
+
+    // --- Tail fins (twin canted + a dorsal blade). ---
+    const finGeo = new THREE.BoxGeometry(0.28, 2.4, 2.8);
+    for (const [x, rot, y] of [[1.9, 0.55, 0.7], [-1.9, -0.55, 0.7], [0, 0, 1.6]]) {
+      const fin = new THREE.Mesh(finGeo, accentMat);
+      fin.position.set(x, y, 3.1);
+      fin.rotation.z = rot;
+      this.model.add(fin);
+      const finEdge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.4, 0.14), stripMat);
+      finEdge.position.set(x + Math.sin(rot) * 0.9, y + Math.cos(rot) * 0.9, 2.2);
+      finEdge.rotation.z = rot;
+      this.model.add(finEdge);
+    }
+
+    // --- Engine block: a gold thrust ring + a triangular cluster of recessed bells. ---
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.85, 0.34, 12, 28), trimMat);
+    ring.position.z = 4.0;
     this.model.add(ring);
-
-    // Engine nozzles + glow discs
     this.engineGlows = [];
-    for (const off of [[0,0], [-0.9,0.6], [0.9,0.6], [0,-0.9]]) {
-      // Recessed metal nozzle so the thrust reads as coming from a real bell.
-      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.55, 1.4, 14, 1, true), panelMat);
+    for (const off of [[0, 0.85], [-0.95, -0.55], [0.95, -0.55]]) {
+      const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.9, 1.2, 16), hullMat);
+      housing.rotation.x = Math.PI / 2;
+      housing.position.set(off[0], off[1], 3.9);
+      this.model.add(housing);
+      // Recessed dark bell so thrust reads as coming from a real nozzle.
+      const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.44, 1.3, 16, 1, true), panelMat);
       nozzle.rotation.x = Math.PI / 2;
-      nozzle.position.set(off[0], off[1], 4.4);
+      nozzle.position.set(off[0], off[1], 4.5);
       this.model.add(nozzle);
-      const e = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), engineMat);
-      e.position.set(off[0], off[1], 4.5);
+      const e = new THREE.Mesh(new THREE.CircleGeometry(0.58, 16), engineMat);
+      e.position.set(off[0], off[1], 4.7);
       e.rotation.y = Math.PI;
       this.model.add(e);
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowSprite(), color: 0x66ffff, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
       glow.scale.set(2, 2, 1);
-      glow.position.set(off[0], off[1], 5.2);
+      glow.position.set(off[0], off[1], 5.3);
       this.model.add(glow);
       this.engineGlows.push(glow);
     }
 
-    // Wings — swept, with glowing leading edges and a gold trim.
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(7, 0.28, 3), bodyMat);
-    wing.position.set(0, -0.2, 2);
-    this.model.add(wing);
-    const leadEdge = new THREE.Mesh(new THREE.BoxGeometry(7, 0.14, 0.25), stripMat);
-    leadEdge.position.set(0, -0.1, 0.6);
-    this.model.add(leadEdge);
-    for (const x of [-2.4, 2.4]) {
-      const strake = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.34, 2.4), trimMat);
-      strake.position.set(x, -0.15, 2.1);
-      this.model.add(strake);
-    }
-    // Nose tip beacon.
-    const tipMat = new THREE.MeshBasicMaterial({ color: 0xffe08a });
-    const noseTip = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 10), tipMat);
-    noseTip.position.set(0, 0, -8.9);
-    this.model.add(noseTip);
-
-    // Fins (vertical + angled)
-    const finGeo = new THREE.BoxGeometry(0.3, 2.6, 3);
-    for (const [x, rot, y] of [[3.2, 0.5, 0.6], [-3.2, -0.5, 0.6], [0, 0, 1.4]]) {
-      const fin = new THREE.Mesh(finGeo, accentMat);
-      fin.position.set(x, y, 3);
-      fin.rotation.z = rot;
-      this.model.add(fin);
-    }
-
-    // Wingtip strut lights
-    for (const x of [-3.5, 3.5]) {
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshBasicMaterial({ color: x < 0 ? 0xff3355 : 0x33ff66 }));
-      tip.position.set(x, -0.2, 1);
-      this.model.add(tip);
-    }
-
-    // Muzzle points (where lasers spawn), in ship-local space.
-    this.muzzles = [new THREE.Vector3(-3.5, -0.2, -1.5), new THREE.Vector3(3.5, -0.2, -1.5)];
+    // Muzzle points (where lasers spawn), in ship-local space — at the wing roots.
+    this.muzzles = [new THREE.Vector3(-3.4, -0.15, -1.0), new THREE.Vector3(3.4, -0.15, -1.0)];
     this.muzzleToggle = 0;
 
     // Muzzle-flash sprites that pop when firing.
