@@ -26,6 +26,9 @@ import { clamp, lerp, damp, isTouchDevice } from './utils.js';
 
 const STATE = { MENU: 'menu', PLAYING: 'playing', GAMEOVER: 'gameover', PAUSED: 'paused' };
 
+// Extra radius beyond the hull's hit range that counts as a near-miss "graze".
+const GRAZE_MARGIN = 20;
+
 // Difficulty presets scale enemy lethality, pace and score reward.
 const DIFFICULTIES = {
   cadet: { label: 'CADET', enemyDmg: 0.6,  enemySpeed: 0.85, fireRate: 1.35, spawnMul: 0.75, scoreMul: 0.8 },
@@ -61,6 +64,8 @@ export class Game {
     this.shotsFired = 0;
     this.shotsHit = 0;
     this.bossesKilled = 0;
+    this.grazeCount = 0;
+    this._grazeCd = 0;
 
     // First-run tutorial (shown once ever).
     this.tutorialDone = localStorage.getItem('cosmos_tut_done') === '1';
@@ -343,6 +348,8 @@ export class Game {
     this.shotsFired = 0;
     this.shotsHit = 0;
     this.bossesKilled = 0;
+    this.grazeCount = 0;
+    this._grazeCd = 0;
     // Apply the chosen difficulty and show its best score.
     this.hiScore = Number(localStorage.getItem(bestKey(this.difficultyKey)) || 0);
     this.aliens.setDifficulty(this.diffConfig);
@@ -425,6 +432,7 @@ export class Game {
     document.getElementById('go-wave').textContent = this.wave;
     document.getElementById('go-kills').textContent = this.kills;
     document.getElementById('go-accuracy').textContent = accuracy + '%';
+    document.getElementById('go-grazes').textContent = this.grazeCount;
     document.getElementById('go-diff').textContent = this.diffConfig.label;
     document.getElementById('go-record').classList.toggle('hidden', !isRecord);
 
@@ -558,6 +566,9 @@ export class Game {
       if (accuracy >= 80) medals.push('🎯 DEADEYE');
       else if (accuracy >= 55) medals.push('🎯 SHARPSHOOTER');
     }
+    // Daredevil grazing.
+    if (this.grazeCount >= 60) medals.push('😎 DAREDEVIL');
+    else if (this.grazeCount >= 25) medals.push('🪶 CLOSE SHAVE');
     // Difficulty badge.
     if (this.difficultyKey === 'ace') medals.push('🔥 ACE PILOT');
     return medals;
@@ -811,16 +822,37 @@ export class Game {
 
   _collideEnemyBolts(dt) {
     const pp = this.player.position;
+    if (this._grazeCd > 0) this._grazeCd -= dt;
     this.projectiles.forEachLive(true, (b) => {
       if (!this.player.alive) return;
       const rr = this.player.radius + b.radius;
-      if (b.mesh.position.distanceToSquared(pp) < rr * rr) {
+      const d2 = b.mesh.position.distanceToSquared(pp);
+      if (d2 < rr * rr) {
         const src = b.mesh.position.clone();
         b.kill();
         this._damagePlayer(b.damage, src);
         this.explosions.burst(src, { scale: 0.4, color: 0xff5566 });
+      } else if (!b._grazed) {
+        // Near-miss: a bolt whisks past just outside the hull. Reward the dodge.
+        const gr = rr + GRAZE_MARGIN;
+        if (d2 < gr * gr) { b._grazed = true; this._onGraze(); }
       }
     });
+  }
+
+  // Grazing: skimming enemy fire without being hit builds Overdrive and score,
+  // rewarding aggressive close-quarters flying. Popup/sound are rate-limited so a
+  // dense volley reads as one satisfying rush instead of a wall of text.
+  _onGraze() {
+    this.grazeCount++;
+    this.score += 15;
+    this.player.addOverdrive(5);
+    if (this._grazeCd <= 0) {
+      this._grazeCd = 0.22;
+      const screen = this._toScreen(this.player.position);
+      if (screen) this.hud.popup(screen.x, screen.y - 34, 'GRAZE', { color: '#8ff0ff' });
+      if (this.audio) this.audio.graze();
+    }
   }
 
   _collideShips(dt) {

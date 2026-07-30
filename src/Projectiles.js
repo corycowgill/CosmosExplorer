@@ -83,6 +83,7 @@ class Bolt {
     this.homingTarget = opts.homingTarget || null;
     this.homing = !!(opts.homing || opts.missile) && !!this.homingTarget;
     this.turnRate = opts.turnRate ?? 3.0;
+    this._grazed = false;   // has this bolt already awarded the player a graze?
 
     // Orient along velocity (all geometry is aligned to +Z / travel).
     const dir = vel.clone().normalize();

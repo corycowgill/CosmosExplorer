@@ -86,6 +86,10 @@ mobile, and with an Xbox controller** — no install, no build step.
   killstreaks that reward fast chained kills, collectible power-ups (hull repair, shield
   cells, weapon upgrades, missile resupply, a **wingman drone** that orbits you and
   auto-fires, score bonuses) and **per-difficulty** high scores.
+- **Grazing** — skim enemy fire without getting hit and you bank a **GRAZE**: bonus
+  points and a chunk of Overdrive charge for every bolt that whisks past your hull.
+  Flying dangerously pays — the run summary tallies your **close calls** and hands out
+  a Daredevil medal for living on the edge.
 - **Three difficulties** (Cadet / Pilot / Ace) that scale enemy lethality, pace, spawn
   counts and score reward — plus a **run-summary screen** with accuracy, earned **medals**
   (Gold, Boss Slayer, Sharpshooter, …) and a "new record" celebration.

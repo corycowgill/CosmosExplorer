@@ -117,6 +117,11 @@ export class AudioFX {
     this._tone({ type: 'sine', freq: 520, freqEnd: 900, dur: 0.24, gain: 0.1 });
   }
 
+  graze() {
+    // Sharp little zip as a bolt whisks past — the "close call" tick.
+    this._tone({ type: 'triangle', freq: 1400, freqEnd: 2100, dur: 0.08, gain: 0.09 });
+  }
+
   waveClear() {
     const notes = [523, 659, 784, 1046];
     notes.forEach((f, i) => this._tone({ type: 'triangle', freq: f, dur: 0.3, gain: 0.18, delay: i * 0.1 }));
