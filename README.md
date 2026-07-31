@@ -48,6 +48,10 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Destructible asteroid field** — faceted, tumbling rocks you can blast apart for
   points and the occasional power-up, and must weave through — fly into one and it bumps
   your hull. The field wraps around the ship so it's effectively endless.
+- **Solar flares** — every so often the star erupts: it flares bright with a
+  **BRACE** warning, then hurls an expanding wall of plasma across the whole system.
+  Time a **barrel roll** (or pop Overdrive) as it washes over you to phase through
+  unharmed — or eat a scorching hit. A dynamic hazard on top of the alien waves.
 - **Six alien ship types**, each with distinct models and AI:
   - **Scout** — fast, fragile, swarms you.
   - **Fighter** — circle-strafes and fires often.
@@ -162,6 +166,7 @@ src/
   Game.js             Renderer, bloom, camera, game loop, collisions, state
   SolarSystem.js      Sun, planets, rings, starfield, nebula
   WarpStreaks.js      Hyperspace boost streaks (pooled line field)
+  SolarFlare.js       Expanding solar-flare shockwave hazard
   Player.js           Rocket ship model, flight physics, weapon, exhaust trail
   AlienManager.js     Alien ship types, AI, wave spawning
   Projectiles.js      Pooled laser bolts (player + enemy)

@@ -122,6 +122,17 @@ export class AudioFX {
     this._tone({ type: 'triangle', freq: 1400, freqEnd: 2100, dur: 0.08, gain: 0.09 });
   }
 
+  flareWarn() {
+    // Rising alarm swell — something's coming.
+    this._tone({ type: 'sawtooth', freq: 180, freqEnd: 520, dur: 1.4, gain: 0.1 });
+  }
+
+  flareErupt() {
+    // Deep roaring boom as the plasma wall launches.
+    this._noise({ dur: 1.1, gain: 0.5, lpStart: 1600, lpEnd: 60 });
+    this._tone({ type: 'sine', freq: 90, freqEnd: 30, dur: 0.9, gain: 0.4 });
+  }
+
   waveClear() {
     const notes = [523, 659, 784, 1046];
     notes.forEach((f, i) => this._tone({ type: 'triangle', freq: f, dur: 0.3, gain: 0.18, delay: i * 0.1 }));

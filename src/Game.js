@@ -10,6 +10,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 import { SolarSystem } from './SolarSystem.js';
 import { WarpStreaks } from './WarpStreaks.js';
+import { SolarFlare } from './SolarFlare.js';
 import { Player } from './Player.js';
 import { AlienManager } from './AlienManager.js';
 import { Projectiles } from './Projectiles.js';
@@ -68,6 +69,7 @@ export class Game {
     this._grazeCd = 0;
     this._hitStop = 0;
     this._flash = 0;
+    this._flareTimer = 18 + Math.random() * 10;   // first flare, seconds
 
     // First-run tutorial (shown once ever).
     this.tutorialDone = localStorage.getItem('cosmos_tut_done') === '1';
@@ -123,6 +125,7 @@ export class Game {
 
     this.solar = new SolarSystem(this.scene, this.quality);
     this.warp = new WarpStreaks(this.scene, this.quality === 'high' ? 220 : 120);
+    this.solarFlare = new SolarFlare(this.scene);
 
     // Post-processing: subtle bloom that makes lasers, engines, the sun and
     // explosions glow. Lighter on low-end devices.
@@ -356,6 +359,7 @@ export class Game {
     this._grazeCd = 0;
     this._hitStop = 0;
     this._flash = 0;
+    this._flareTimer = 18 + Math.random() * 10;   // first flare, seconds
     // Apply the chosen difficulty and show its best score.
     this.hiScore = Number(localStorage.getItem(bestKey(this.difficultyKey)) || 0);
     this.aliens.setDifficulty(this.diffConfig);
@@ -371,6 +375,7 @@ export class Game {
     this.asteroids.reset(this.player.position);
     this.drones.reset();
     this.warp.reset();
+    this.solarFlare.reset();
     this.gradePass.uniforms.uAberration.value = this._baseAber;
     // Snap camera behind the ship.
     this._placeCameraBehind(true);
@@ -750,6 +755,9 @@ export class Game {
     const collected = this.pickups.update(dt, this.player.position);
     for (const kind of collected) this._applyPickup(kind);
 
+    // Solar flare hazard.
+    this._updateSolarFlare(dt);
+
     // Combo decay.
     if (this.comboTimer > 0) {
       this.comboTimer -= dt;
@@ -1125,6 +1133,48 @@ export class Game {
     if (mag > this._camShakeMag * this._camShakeT || this._camShakeT <= 0) {
       this._camShakeMag = mag;
       this._camShakeT = time;
+    }
+  }
+
+  // Solar flare: schedule → telegraph → erupt → sweep. The expanding shell hits the
+  // player once as it washes over them, unless they're briefly invulnerable (a barrel
+  // roll or Overdrive) — so the fair play is to time a roll through the wall of plasma.
+  _updateSolarFlare(dt) {
+    const flare = this.solarFlare;
+    const sun = this.solar.sun.getWorldPosition(this._tmpV2);
+
+    // Erupting: expand the shell and hit the player once as it washes over them.
+    if (flare.active) {
+      flare.update(dt, sun);
+      const dist = this.player.position.distanceTo(sun);
+      if (flare.crosses(dist) && !this.player.invulnerable) {
+        this._damagePlayer(20 * this.diffConfig.enemyDmg, sun.clone());
+        this._heavyImpact(0, 0.6, 1.1, 0.5);
+        this.explosions.burst(this.player.position.clone(), { scale: 0.7, color: 0xff8833 });
+      }
+      return;
+    }
+
+    // Telegraph: when the warning elapses, the flare erupts.
+    if (flare.warning > 0) {
+      flare.update(dt, sun);
+      if (flare.warning <= 0) {
+        flare.erupt(sun);
+        if (this.audio && this.audio.flareErupt) this.audio.flareErupt();
+        this._addShake(0.5, 0.4);
+        // Next flare comes sooner as waves escalate (floors at ~14s).
+        this._flareTimer = Math.max(14, 30 - this.wave) + Math.random() * 8;
+      }
+      return;
+    }
+
+    // Idle: count down to the next flare, then start its telegraph.
+    if (this.wave < 2) return;
+    this._flareTimer -= dt;
+    if (this._flareTimer <= 0) {
+      flare.warn(2.0);
+      this.hud.toast('☀ SOLAR FLARE — BRACE', 2.2);
+      if (this.audio && this.audio.flareWarn) this.audio.flareWarn();
     }
   }
 
