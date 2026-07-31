@@ -66,6 +66,8 @@ export class Game {
     this.bossesKilled = 0;
     this.grazeCount = 0;
     this._grazeCd = 0;
+    this._hitStop = 0;
+    this._flash = 0;
 
     // First-run tutorial (shown once ever).
     this.tutorialDone = localStorage.getItem('cosmos_tut_done') === '1';
@@ -129,6 +131,8 @@ export class Game {
     const strength = this.quality === 'high' ? 0.72 : 0.55;
     this.bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, 0.65, 0.85);
     this.composer.addPass(this.bloom);
+    this._bloomBase = strength;
+    this._flash = 0;   // transient bloom-flash amount on heavy impacts
 
     // Cinematic sun lens flare (camera-attached screen-space sprites).
     this.lensFlare = new LensFlare(this.scene, this.camera);
@@ -350,6 +354,8 @@ export class Game {
     this.bossesKilled = 0;
     this.grazeCount = 0;
     this._grazeCd = 0;
+    this._hitStop = 0;
+    this._flash = 0;
     // Apply the chosen difficulty and show its best score.
     this.hiScore = Number(localStorage.getItem(bestKey(this.difficultyKey)) || 0);
     this.aliens.setDifficulty(this.diffConfig);
@@ -644,7 +650,11 @@ export class Game {
     }
 
     if (this.state === STATE.PLAYING) {
-      this._updatePlaying(dt);
+      // Hit-stop: on heavy impacts, briefly near-freeze the simulation (real-time
+      // countdown) so the blow lands with weight before time snaps back.
+      let simDt = dt;
+      if (this._hitStop > 0) { this._hitStop -= dt; simDt = dt * 0.12; }
+      this._updatePlaying(simDt);
     } else if (this.state === STATE.PAUSED) {
       // Frozen: render the frame but advance nothing.
     } else {
@@ -660,6 +670,9 @@ export class Game {
     this.lensFlare.update(this._sunPos);
 
     this.gradePass.uniforms.uTime.value = this._elapsed;
+    // Bloom flash on heavy impacts: spike then decay back to the baseline.
+    if (this._flash > 0) this._flash = Math.max(0, this._flash - dt * 3.5);
+    this.bloom.strength = this._bloomBase + this._flash + (this.warp ? this.warp.amount * 0.25 : 0);
     this.hud.update(dt);
     this.composer.render();
   }
@@ -807,7 +820,7 @@ export class Game {
         if (wasMissile) {
           this.explosions.burst(hitPos, { scale: 1.3, big: true, color: 0xffaa33 });
           this.audio.explosion(true);
-          this._addShake(0.7, 0.35);
+          this._heavyImpact(0.05, 0.5, 0.7, 0.35);
           const splashR = 40;
           for (const a of this.aliens.aliens) {
             if (!a.alive || a === hitAlien) continue;
@@ -957,8 +970,11 @@ export class Game {
     this.hud.setScore(this.score);
     this.hud.setCombo(this.combo);
 
-    // Camera shake scaled to blast.
-    this._addShake(isBoss ? 1.6 : (big ? 0.9 : 0.4), isBoss ? 0.9 : (big ? 0.5 : 0.28));
+    // Impact feedback scaled to the blast: bosses & heavies land with a hit-stop and
+    // a bloom flash; ordinary kills just get a light shake (no stutter on every scout).
+    if (isBoss) this._heavyImpact(0.14, 1.0, 1.6, 0.9);
+    else if (big) this._heavyImpact(0.05, 0.45, 0.9, 0.5);
+    else this._addShake(0.4, 0.28);
 
     // Floating score popup at the kill location.
     const screen = this._toScreen(pos);
@@ -1110,6 +1126,14 @@ export class Game {
       this._camShakeMag = mag;
       this._camShakeT = time;
     }
+  }
+
+  // Heavy-impact feedback: a brief hit-stop (sim near-freeze), a bloom flash and a
+  // camera shake — bundled so big moments (boss deaths, missile blasts) land hard.
+  _heavyImpact(hitStop, flash, shake, shakeTime) {
+    this._hitStop = Math.max(this._hitStop, hitStop);
+    this._flash = Math.max(this._flash, flash);
+    if (shake) this._addShake(shake, shakeTime ?? 0.35);
   }
 
   // ---------------- lock-on + HUD ----------------

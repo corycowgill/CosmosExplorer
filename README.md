@@ -74,7 +74,9 @@ mobile, and with an Xbox controller** — no install, no build step.
   expanding shockwave rings, flash sprites, muzzle flashes, dynamic lights, camera shake,
   floating score popups, killstreak callouts (TRIPLE! / RAMPAGE! / GODLIKE!), a cinematic
   **sun lens flare** with an anamorphic streak, and an `UnrealBloom` post pipeline plus a
-  color-grade (vignette, chromatic aberration, film grain).
+  color-grade (vignette, chromatic aberration, film grain). Heavy impacts — boss deaths
+  and missile blasts — land with a brief **hit-stop** (time near-freezes for a beat) and
+  a **bloom flash** so big moments hit with real weight.
 - **Hyperspace boost** — pin the throttle and the stars smear into radial warp
   streaks, the field-of-view kicks wide and the chromatic aberration swells for a
   visceral jump-to-lightspeed rush.
