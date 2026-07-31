@@ -79,15 +79,17 @@ export class Player {
   }
 
   _buildShip() {
-    // Polished metal that catches the environment reflections, warm accent metal,
-    // dark greeble panels, glowing trim and glass.
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdbe6f2, metalness: 0.95, roughness: 0.22, envMapIntensity: 1.6, emissive: 0x0a0f16, emissiveIntensity: 0.3 });
-    const hullMat = new THREE.MeshStandardMaterial({ color: 0xb8c6d8, metalness: 0.96, roughness: 0.28, envMapIntensity: 1.5, emissive: 0x080c12, emissiveIntensity: 0.25 });
-    const accentMat = new THREE.MeshStandardMaterial({ color: 0xff5533, metalness: 0.7, roughness: 0.3, envMapIntensity: 1.3, emissive: 0x551100, emissiveIntensity: 0.5 });
-    const trimMat = new THREE.MeshStandardMaterial({ color: 0xe8b24a, metalness: 1.0, roughness: 0.28, envMapIntensity: 1.5, emissive: 0x2a1c04, emissiveIntensity: 0.3 });
-    const panelMat = new THREE.MeshStandardMaterial({ color: 0x3a4452, metalness: 0.85, roughness: 0.5, envMapIntensity: 0.9 });
+    // Lacquered metal with a clearcoat sheen that catches the environment reflections,
+    // warm accent metal, dark greeble panels, self-lit glowing trim and tinted glass.
+    const bodyMat = new THREE.MeshPhysicalMaterial({ color: 0xe2ecf6, metalness: 0.9, roughness: 0.2, clearcoat: 1.0, clearcoatRoughness: 0.12, envMapIntensity: 1.75, emissive: 0x0a0f16, emissiveIntensity: 0.28 });
+    const hullMat = new THREE.MeshPhysicalMaterial({ color: 0xb0bccd, metalness: 0.94, roughness: 0.26, clearcoat: 0.85, clearcoatRoughness: 0.22, envMapIntensity: 1.6, emissive: 0x080c12, emissiveIntensity: 0.22 });
+    const accentMat = new THREE.MeshPhysicalMaterial({ color: 0xff5533, metalness: 0.6, roughness: 0.28, clearcoat: 0.9, clearcoatRoughness: 0.2, envMapIntensity: 1.35, emissive: 0x551100, emissiveIntensity: 0.5 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xe8b24a, metalness: 1.0, roughness: 0.26, envMapIntensity: 1.6, emissive: 0x2a1c04, emissiveIntensity: 0.35 });
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x2f3946, metalness: 0.85, roughness: 0.55, envMapIntensity: 0.85 });
     const stripMat = new THREE.MeshBasicMaterial({ color: 0x38f6ff });
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0x2299ff, metalness: 0.5, roughness: 0.06, envMapIntensity: 1.8, emissive: 0x113355, emissiveIntensity: 0.8, transparent: true, opacity: 0.88 });
+    // Self-lit trim: emissive so it blooms *and* casts a little colour on the hull.
+    const glowTrimMat = new THREE.MeshStandardMaterial({ color: 0x2ce6ff, emissive: 0x38f6ff, emissiveIntensity: 2.6, metalness: 0.4, roughness: 0.4 });
+    const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x2299ff, metalness: 0.3, roughness: 0.04, clearcoat: 1.0, clearcoatRoughness: 0.04, transmission: 0.35, ior: 1.4, envMapIntensity: 2.0, emissive: 0x113355, emissiveIntensity: 0.85, transparent: true, opacity: 0.9 });
     const engineMat = new THREE.MeshBasicMaterial({ color: 0x66ffff });
 
     // --- Fuselage: a smooth lathe-turned hull (nose −Z, tail +Z) for a sleek,
@@ -120,6 +122,49 @@ export class Player {
     pod.rotation.x = Math.PI / 2;
     pod.position.set(0, -1.5, -1.2);
     this.model.add(pod);
+
+    // Intake vents recessed into each flank (louvred dark boxes).
+    for (const s of [-1, 1]) {
+      const intake = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.7, 1.8), panelMat);
+      intake.position.set(s * 1.5, 0.35, -0.4);
+      intake.rotation.y = s * 0.06;
+      this.model.add(intake);
+      for (let i = 0; i < 3; i++) {
+        const slat = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.1), trimMat);
+        slat.position.set(s * 1.63, 0.35, -1.05 + i * 0.5);
+        this.model.add(slat);
+      }
+    }
+
+    // A row of tiny glowing running lights down each flank.
+    for (const s of [-1, 1]) {
+      for (const z of [-2.6, -1.6, -0.6, 0.4, 1.4]) {
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), glowTrimMat);
+        dot.position.set(s * 1.5, 0.55, z);
+        this.model.add(dot);
+      }
+    }
+
+    // Forward vernier thrusters (little maneuvering nozzles) at the nose shoulder.
+    for (const s of [-1, 1]) {
+      const vern = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.4, 8), panelMat);
+      vern.rotation.z = Math.PI / 2;
+      vern.position.set(s * 1.05, -0.1, -3.4);
+      this.model.add(vern);
+    }
+
+    // Dorsal sensor antenna behind the cockpit.
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 1.6, 6), panelMat);
+    mast.position.set(0, 1.9, 1.0);
+    this.model.add(mast);
+    const mastTip = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 8), glowTrimMat);
+    mastTip.position.set(0, 2.7, 1.0);
+    this.model.add(mastTip);
+
+    // Ventral glow strip running the length of the belly.
+    const bellyStrip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 5.2), glowTrimMat);
+    bellyStrip.position.set(0, -1.75, 0.4);
+    this.model.add(bellyStrip);
 
     // Nose accent chevron + a warm beacon tip.
     const noseRing = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.14, 8, 20), accentMat);
@@ -207,6 +252,11 @@ export class Player {
       nozzle.rotation.x = Math.PI / 2;
       nozzle.position.set(off[0], off[1], 4.5);
       this.model.add(nozzle);
+      // Lit combustion chamber: a bright disc with a recessed inner glow cone.
+      const chamber = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.0, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xbdfcff, side: THREE.BackSide }));
+      chamber.rotation.x = -Math.PI / 2;
+      chamber.position.set(off[0], off[1], 4.3);
+      this.model.add(chamber);
       const e = new THREE.Mesh(new THREE.CircleGeometry(0.58, 16), engineMat);
       e.position.set(off[0], off[1], 4.7);
       e.rotation.y = Math.PI;
