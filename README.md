@@ -63,6 +63,10 @@ mobile, and with an Xbox controller** — no install, no build step.
   - **Lancer** — a long-range sniper that hangs back and telegraphs a bright,
     growing charge, then looses a fast, precise bolt. Break line of sight or kill it
     mid-charge.
+  - **Elites** — an escalating fraction of ordinary foes warp in as tougher,
+    gold-haloed **elite** variants: more hull, faster fire, worth ~3× score and a
+    big Overdrive jolt, and they drop guaranteed loot. Marked gold on the radar —
+    prioritise or avoid them.
 - **Boss fights** — every 5th wave a boss warps in with a dedicated health bar,
   alternating between two very different foes: the **Mothership** (bolt fans + summons
   scout escorts) and the **Warden** dreadnought (radial bullet-ring bursts, curving

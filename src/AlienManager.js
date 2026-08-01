@@ -54,6 +54,9 @@ const TYPES = {
 };
 
 const BOSS_TYPES = new Set(['boss', 'warden']);
+// Types eligible to spawn as tougher "elite" variants (stingers/lancers use their
+// aura for telegraphs, so they're excluded).
+const ELITE_TYPES = new Set(['scout', 'fighter', 'cruiser', 'sentinel']);
 
 // How long a Lancer telegraphs its charge before it looses a bolt.
 const LANCER_CHARGE = 1.4;
@@ -429,6 +432,24 @@ class Alien {
     this.charging = false;
     this.chargeTimer = 0;
     if (this.chargeGlow) this.chargeGlow.material.opacity = 0;
+    // Reset elite state (pooled objects are reused across types/spawns).
+    this.elite = false;
+    this.eliteMult = 1;
+    this.mesh.scale.setScalar(1);
+    this.aura.material.color.setHex(this.def.glow);
+    this.aura.scale.setScalar(this.def.radius * 2.1);
+  }
+
+  // Promote to an elite: a tougher, gold-haloed variant worth far more score and
+  // guaranteed loot. Applied by the manager to a fraction of ordinary spawns.
+  makeElite() {
+    this.elite = true;
+    this.eliteMult = 3;
+    this.health = Math.ceil(this.def.health * 2.2);
+    this.maxHealth = this.health;
+    this.mesh.scale.setScalar(1.28);
+    this.aura.material.color.setHex(0xffd24a);
+    this.aura.scale.setScalar(this.def.radius * 2.8);
   }
 
   kill() { this.alive = false; this.group.visible = false; }
@@ -533,8 +554,8 @@ class Alien {
       desired.normalize();
     }
 
-    // Steer velocity toward desired.
-    const speed = def.speed * (0.9 + difficulty * 0.06) * speedMul * extraSpeed;
+    // Steer velocity toward desired (elites are a touch faster).
+    const speed = def.speed * (0.9 + difficulty * 0.06) * speedMul * extraSpeed * (this.elite ? 1.12 : 1);
     const targetVel = desired.multiplyScalar(speed);
     this.velocity.lerp(targetVel, damp(def.turn * 1.4, dt));
     this.group.position.addScaledVector(this.velocity, dt);
@@ -651,7 +672,7 @@ class Alien {
     const dist = this.position.distanceTo(playerPos);
     if (dist > 340) return false;
     if (this.fireTimer <= 0) {
-      this.fireTimer = this.def.fireCooldown * (0.7 + Math.random() * 0.6) / (1 + difficulty * 0.05) * fireRateMul;
+      this.fireTimer = this.def.fireCooldown * (0.7 + Math.random() * 0.6) / (1 + difficulty * 0.05) * fireRateMul * (this.elite ? 0.7 : 1);
       return true;
     }
     return false;
@@ -767,6 +788,10 @@ export class AlienManager {
       a.maxHealth = a.def.health + Math.floor(this.wave / 5) * 90;
       a.health = a.maxHealth;
       this.boss = a;
+    } else if (ELITE_TYPES.has(type)) {
+      // A growing fraction of ordinary foes arrive as tougher gold elites.
+      const chance = clamp(0.05 + this.wave * 0.012, 0, 0.24);
+      if (Math.random() < chance) a.makeElite();
     }
   }
 

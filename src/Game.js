@@ -966,14 +966,14 @@ export class Game {
     a.kill();
     this.kills++;
 
-    // Overdrive charge scales with the target's toughness.
-    this.player.addOverdrive(isBoss ? 60 : (a.type === 'cruiser' ? 22 : (a.type === 'fighter' ? 11 : 7)));
+    // Overdrive charge scales with the target's toughness (elites give a big jolt).
+    this.player.addOverdrive(isBoss ? 60 : (a.elite ? 30 : (a.type === 'cruiser' ? 22 : (a.type === 'fighter' ? 11 : 7))));
     this.ach.add('kills');
 
-    // Combo + score.
+    // Combo + score (elites are worth ~3x via a.eliteMult).
     this.combo = clamp(this.combo + 0.5, 1, 8);
     this.comboTimer = 3.2;
-    const gained = Math.round(a.def.score * this.combo * this.diffConfig.scoreMul);
+    const gained = Math.round(a.def.score * this.combo * this.diffConfig.scoreMul * (a.eliteMult || 1));
     this.score += gained;
     this.hud.setScore(this.score);
     this.hud.setCombo(this.combo);
@@ -984,14 +984,23 @@ export class Game {
     else if (big) this._heavyImpact(0.05, 0.45, 0.9, 0.5);
     else this._addShake(0.4, 0.28);
 
-    // Floating score popup at the kill location.
+    // Floating score popup at the kill location (elites pop gold).
     const screen = this._toScreen(pos);
     if (screen) {
-      const color = this.combo >= 3 ? '#ffd54a' : '#eafcff';
-      this.hud.popup(screen.x, screen.y, '+' + gained, { color, big: big || this.combo >= 4 });
+      const color = a.elite ? '#ffd24a' : (this.combo >= 3 ? '#ffd54a' : '#eafcff');
+      this.hud.popup(screen.x, screen.y, '+' + gained, { color, big: big || a.elite || this.combo >= 4 });
     }
 
     if (isBoss) { this._onBossDefeated(pos); return; }
+
+    // Elites: a golden burst, a callout and guaranteed loot.
+    if (a.elite) {
+      this.explosions.burst(pos, { scale: 1.4, big: true, color: 0xffd24a });
+      this._heavyImpact(0.04, 0.5, 0.8, 0.45);
+      this.hud.toast('★ ELITE DOWN ★', 1.2);
+      const drops = ['shield', 'missile', 'repair', 'bonus', 'weapon'];
+      this.pickups.drop(pos, drops[Math.floor(Math.random() * drops.length)]);
+    }
 
     // Killstreak callouts (kills bunched close in time).
     this._streakCount++;
