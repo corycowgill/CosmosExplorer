@@ -91,7 +91,8 @@ mobile, and with an Xbox controller** — no install, no build step.
 - **Wave progression & scoring** — escalating enemy waves, a combo multiplier and
   killstreaks that reward fast chained kills, collectible power-ups (hull repair, shield
   cells, weapon upgrades, missile resupply, a **wingman drone** that orbits you and
-  auto-fires, score bonuses) and **per-difficulty** high scores.
+  auto-fires, a screen-clearing **Nova Blast** smart-bomb that wipes enemy fire and
+  vaporises the swarm, score bonuses) and **per-difficulty** high scores.
 - **Grazing** — skim enemy fire without getting hit and you bank a **GRAZE**: bonus
   points and a chunk of Overdrive charge for every bolt that whisks past your hull.
   Flying dangerously pays — the run summary tallies your **close calls** and hands out

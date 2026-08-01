@@ -1031,6 +1031,7 @@ export class Game {
     this.pickups.drop(pos.clone().add(new THREE.Vector3(-12, 0, 0)), 'missile');
     this.pickups.drop(pos.clone().add(new THREE.Vector3(0, 12, 0)), 'repair');
     this.pickups.drop(pos.clone().add(new THREE.Vector3(0, -12, 0)), 'shield');
+    this.pickups.drop(pos.clone().add(new THREE.Vector3(0, 0, 14)), 'nova');
     // Clear the escorts in a satisfying sweep.
     for (const e of this.aliens.aliens) {
       if (e.alive && e.type !== 'boss') {
@@ -1070,7 +1071,39 @@ export class Game {
       this.drones.add();
       this.hud.toast('WINGMAN DRONE ONLINE', 1.2);
     }
+    else if (kind === 'nova') { this._novaBlast(); return; }  // its own SFX/feedback
     this.audio.pickup();
+  }
+
+  // Nova blast: a collected smart-bomb. A shockwave sweeps out from the ship, wiping
+  // enemy fire from the sky and vaporising nearby aliens (heavily denting bosses).
+  _novaBlast() {
+    const origin = this.player.position.clone();
+    this.hud.toast('☢ NOVA BLAST ☢', 1.4);
+    this.audio.explosion(true);
+    this._heavyImpact(0.08, 1.1, 1.4, 0.7);
+    // Big expanding shockwave + a flash at the ship.
+    this.explosions.burst(origin, { scale: 3.2, big: true, color: 0xff66ff });
+    this.explosions.burst(origin, { scale: 2.0, big: true, color: 0xffffff });
+
+    // Sweep enemy bolts from the sky.
+    this.projectiles.forEachLive(true, (b) => {
+      this.explosions.burst(b.mesh.position.clone(), { scale: 0.25, color: 0xff99ff });
+      b.kill();
+    });
+
+    // Vaporise nearby aliens; bosses take a heavy dent instead of dying outright.
+    const R = 640;
+    for (const a of this.aliens.aliens) {
+      if (!a.alive) continue;
+      if (a.position.distanceToSquared(origin) > R * R) continue;
+      if (a.type === 'boss' || a.type === 'warden') {
+        if (a.hit(45)) this._onAlienDestroyed(a);
+        else this.explosions.burst(a.position.clone(), { scale: 1.0, color: 0xff66ff });
+      } else {
+        this._onAlienDestroyed(a);
+      }
+    }
   }
 
   // ---------------- camera ----------------

@@ -13,6 +13,7 @@ const KINDS = {
   weapon:  { color: 0xff5ec4, label: 'WEAPON UP' },
   missile: { color: 0xffaa33, label: 'MISSILES +2' },
   drone:   { color: 0x66ffff, label: 'WINGMAN DRONE' },
+  nova:    { color: 0xff66ff, label: 'NOVA BLAST' },
 };
 
 class Pickup {
@@ -87,9 +88,10 @@ export class Pickups {
   maybeDrop(pos, biasHeal = false) {
     const r = Math.random();
     let kind = null;
-    if (r < 0.05) kind = 'weapon';       // rare: upgrade the pulse laser
-    else if (r < 0.08) kind = 'drone';   // rare: a wingman drone
-    else if (r < 0.16) kind = 'missile'; // uncommon: +2 homing missiles
+    if (r < 0.03) kind = 'nova';         // rare: a screen-clearing nova blast
+    else if (r < 0.07) kind = 'weapon';  // rare: upgrade the pulse laser
+    else if (r < 0.10) kind = 'drone';   // rare: a wingman drone
+    else if (r < 0.17) kind = 'missile'; // uncommon: +2 homing missiles
     else if (r < 0.25) kind = 'repair';
     else if (r < 0.37) kind = 'shield';
     else if (r < 0.45) kind = 'bonus';
