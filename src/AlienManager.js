@@ -1,12 +1,17 @@
-// Alien ships: three visually distinct types with different behaviour, spawned in
-// escalating waves around the player. Each alien flies with simple steering (seek /
-// strafe / evade) and fires at the player. Models are built from primitives.
+// Alien ships: visually distinct types with different behaviour, spawned in
+// escalating waves around the player. Each alien flies with steering (seek / strafe /
+// evade) and fires at the player. The agile chasers also lead the player's motion to
+// intercept, jink out of the player's line of fire, and separate so swarms surround
+// rather than stack. Models are built from primitives.
 
 import * as THREE from 'three';
 import { makeGlowSprite } from './SolarSystem.js';
 import { randRange, clamp, damp } from './utils.js';
 
 const _v1 = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _v3 = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
 
 const TYPES = {
   // Fast, weak, swarms the player.
@@ -432,6 +437,9 @@ class Alien {
     this.charging = false;
     this.chargeTimer = 0;
     if (this.chargeGlow) this.chargeGlow.material.opacity = 0;
+    // Evasive-jink state (dodging the player's line of fire).
+    this.jinkTimer = randRange(0.2, 0.6);
+    this.jinkDir = Math.random() < 0.5 ? 1 : -1;
     // Reset elite state (pooled objects are reused across types/spawns).
     this.elite = false;
     this.eliteMult = 1;
@@ -479,7 +487,7 @@ class Alien {
   get position() { return this.group.position; }
   get radius() { return this.def.radius; }
 
-  update(dt, playerPos, difficulty, speedMul = 1) {
+  update(dt, playerPos, difficulty, speedMul = 1, playerForward = null, playerVel = null) {
     if (!this.alive) return;
     this.wobble += dt * 2;
     const def = this.def;
@@ -552,6 +560,31 @@ class Alien {
       desired.x += Math.sin(this.wobble * 1.3) * 0.25;
       desired.y += Math.cos(this.wobble) * 0.25;
       desired.normalize();
+    }
+
+    // --- Smarter tactics for the agile chasers -----------------------------------
+    // Lead the player's motion (intercept, don't tail-chase) and jink out of the
+    // player's line of fire so they're harder to track and pin down.
+    const tactical = def.behaviour === 'seek' || def.behaviour === 'strafe' || def.behaviour === 'advance';
+    if (tactical) {
+      // Intercept: aim a little ahead of where the player is heading.
+      if (playerVel) {
+        const closing = def.speed * (0.9 + difficulty * 0.06);
+        const lead = clamp(dist / Math.max(closing, 1), 0, 1.5);
+        const intercept = _v2.copy(playerPos).addScaledVector(playerVel, lead).sub(this.group.position).normalize();
+        desired.lerp(intercept, 0.4).normalize();
+      }
+      // Jink: if this ship sits inside the player's forward firing cone and is close,
+      // weave sideways to dodge the crosshair (agile scouts/fighters only).
+      if (playerForward && (this.type === 'scout' || this.type === 'fighter') && dist < 260) {
+        const inCone = playerForward.dot(_v3.copy(this.group.position).sub(playerPos).normalize());
+        if (inCone > 0.6) {
+          this.jinkTimer -= dt;
+          if (this.jinkTimer <= 0) { this.jinkDir *= -1; this.jinkTimer = randRange(0.3, 0.7); }
+          const side = _v3.crossVectors(toPlayer, _up).normalize().multiplyScalar(this.jinkDir);
+          desired.addScaledVector(side, 1.7).normalize();
+        }
+      }
     }
 
     // Steer velocity toward desired (elites are a touch faster).
@@ -878,10 +911,11 @@ export class AlienManager {
       }
     }
 
+    const playerVel = player.velocity;
     const tmpVel = new THREE.Vector3();
     for (const a of this.aliens) {
       if (!a.alive) continue;
-      a.update(dt, playerPos, this.difficulty, this.diff.enemySpeed);
+      a.update(dt, playerPos, this.difficulty, this.diff.enemySpeed, playerForward, playerVel);
 
       // Bosses use timed attack patterns instead of the single-bolt fire.
       if (BOSS_TYPES.has(a.type)) {
@@ -945,6 +979,28 @@ export class AlienManager {
 
       // Despawn stragglers that wandered absurdly far.
       if (a.position.distanceTo(playerPos) > 1400) a.kill();
+    }
+
+    this._separate();
+  }
+
+  // Light mutual separation so swarms spread out and surround the player instead of
+  // stacking into one overlapping blob. O(n^2) over a small live set (bosses exempt).
+  _separate() {
+    const live = this.aliens.filter((a) => a.alive && !BOSS_TYPES.has(a.type));
+    for (let i = 0; i < live.length; i++) {
+      const a = live[i];
+      for (let j = i + 1; j < live.length; j++) {
+        const b = live[j];
+        const min = (a.radius + b.radius) * 2.0;
+        const d2 = a.position.distanceToSquared(b.position);
+        if (d2 < min * min && d2 > 0.0001) {
+          const d = Math.sqrt(d2);
+          _v1.subVectors(a.position, b.position).multiplyScalar(((min - d) * 0.25) / d);
+          a.position.add(_v1);
+          b.position.sub(_v1);
+        }
+      }
     }
   }
 

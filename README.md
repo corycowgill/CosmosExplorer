@@ -53,7 +53,10 @@ mobile, and with an Xbox controller** — no install, no build step.
   **BRACE** warning, then hurls an expanding wall of plasma across the whole system.
   Time a **barrel roll** (or pop Overdrive) as it washes over you to phase through
   unharmed — or eat a scorching hit. A dynamic hazard on top of the alien waves.
-- **Six alien ship types**, each with distinct models and AI:
+- **Six alien ship types**, each with distinct models and AI. The agile chasers
+  **lead your motion to cut you off**, **jink sideways out of your crosshair** when
+  they're in your line of fire, and **spread out to surround** you rather than
+  stacking up:
   - **Scout** — fast, fragile, swarms you.
   - **Fighter** — circle-strafes and fires often.
   - **Cruiser** — slow, tanky flying saucer that hits hard and drops loot.
