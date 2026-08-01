@@ -42,9 +42,10 @@ mobile, and with an Xbox controller** — no install, no build step.
 ## Features
 
 - **Full 3D solar system** — a bloom-lit sun with a layered corona, six orbiting
-  planets (banded gas giants, a ringed world, an ocean planet), a 5,000-star field,
-  drifting nebula clouds and distant spiral galaxies, all generated procedurally in code
-  (zero texture downloads).
+  planets (banded gas giants, a ringed world, an ocean planet) each wrapped in a
+  **fresnel atmosphere** that glows along its limb like real atmospheric scattering,
+  a 5,000-star field, drifting nebula clouds and distant spiral galaxies, all generated
+  procedurally in code (zero texture downloads).
 - **Destructible asteroid field** — faceted, tumbling rocks you can blast apart for
   points and the occasional power-up, and must weave through — fly into one and it bumps
   your hull. The field wraps around the ship so it's effectively endless.

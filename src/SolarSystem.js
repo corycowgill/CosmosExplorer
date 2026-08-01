@@ -77,6 +77,43 @@ function makePlanetTexture(baseColor, opts = {}) {
 }
 
 // Build a tangent-space normal map from a canvas's luminance (Sobel gradients).
+// Fresnel atmosphere: an inside-out shell whose brightness ramps toward the limb,
+// so planets get a soft glowing halo that's strongest at the silhouette edge.
+function makeAtmosphereMaterial(color, power = 3.4, intensity = 1.2) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: new THREE.Color(color) },
+      uPower: { value: power },
+      uIntensity: { value: intensity },
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor;
+      uniform float uPower;
+      uniform float uIntensity;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        float f = pow(1.0 - abs(dot(vNormal, vView)), uPower);
+        gl_FragColor = vec4(uColor * f * uIntensity, f);
+      }
+    `,
+    transparent: true,
+    side: THREE.BackSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+}
+
 function makeNormalFromCanvas(src, strength = 2.0) {
   const w = src.width, h = src.height;
   const sctx = src.getContext('2d');
@@ -340,13 +377,13 @@ export class SolarSystem {
       mesh.rotation.z = randRange(-0.4, 0.4);
       pivot.add(mesh);
 
-      // Atmospheric rim glow.
+      // Atmospheric limb glow — a fresnel shell that brightens toward the planet's
+      // edge like real atmospheric scattering, instead of a flat uniform halo.
+      const atmoColor = def.ocean ? new THREE.Color(0x6fb7ff)
+        : new THREE.Color(def.color).offsetHSL(0, -0.1, 0.22);
       const atmo = new THREE.Mesh(
-        new THREE.SphereGeometry(def.radius * 1.08, 32, 32),
-        new THREE.MeshBasicMaterial({
-          color: def.ocean ? 0x6fb7ff : new THREE.Color(def.color).offsetHSL(0, -0.2, 0.2),
-          transparent: true, opacity: 0.14, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-        })
+        new THREE.SphereGeometry(def.radius * 1.16, 48, 32),
+        makeAtmosphereMaterial(atmoColor, def.ocean ? 3.0 : 3.6, def.ocean ? 1.5 : 1.1)
       );
       mesh.add(atmo);
 
